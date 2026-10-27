@@ -59,6 +59,7 @@ import { isResultReady } from "./lib/workflowState";
 import { videoVersions } from "./videoDemo";
 import { getAssets, assetSlots } from "./lib/assets";
 import type { Asset } from "./lib/assets";
+import "./components/VideoStudio.css";
 
 type Decision = { stage: number; text: string; at: string; version: number };
 type Project = {
@@ -1294,6 +1295,54 @@ export default function App() {
     );
   }
 
+  const stageRail = active ? (
+    <nav className="stage-rail" aria-label="创作工作流">
+      {info.stages.map((s, i) => (
+        <button
+          key={s.id}
+          title={s.title}
+          aria-label={`查看${s.title}`}
+          aria-current={i === active.stage ? "step" : undefined}
+          aria-pressed={i === shownStage}
+          disabled={i > active.stage}
+          className={`${i === shownStage ? "current" : ""} ${active.completed.includes(i) ? "done" : ""}`}
+          onClick={() => {
+            setInspectedStage(i);
+            if (active.kind === "video") {
+              setTab("chat");
+              setFocusPreview(false);
+            }
+          }}
+        >
+          <span>
+            {active.completed.includes(i) ? (
+              <Check size={11} />
+            ) : (
+              String(i + 1).padStart(2, "0")
+            )}
+          </span>
+          <small>{s.shortTitle}</small>
+        </button>
+      ))}
+    </nav>
+  ) : null;
+
+  const focusToggle = (
+    <button
+      className="focus-toggle"
+      disabled={!canPreviewResults}
+      title={
+        canPreviewResults ? "专注查看本次成果" : "完成流程并确认交付后解锁"
+      }
+      onClick={() => {
+        if (canPreviewResults) setFocusPreview(!focusPreview);
+      }}
+    >
+      <Monitor size={14} />
+      {focusPreview ? "回到创作" : "专注预览"}
+    </button>
+  );
+
   return (
     <div className={`app-shell ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
       <aside className="sidebar">
@@ -1807,92 +1856,88 @@ export default function App() {
           />
         )}
         {page === "studio" && active && (
-          <div className="studio-page">
-            <div className="studio-heading">
-              <div className="studio-title">
-                <span className={`studio-icon ${active.kind}`}>
-                  {active.kind === "article" ? (
-                    <FileImage size={22} />
-                  ) : (
-                    <Clapperboard size={22} />
-                  )}
-                </span>
-                <div>
+          <div
+            className={`studio-page${active.kind === "video" ? " video-studio" : ""}`}
+          >
+            <div className="studio-toolbar">
+              <div className="studio-heading">
+                <div className="studio-title">
+                  <span className={`studio-icon ${active.kind}`}>
+                    {active.kind === "article" ? (
+                      <FileImage size={22} />
+                    ) : (
+                      <Clapperboard size={22} />
+                    )}
+                  </span>
                   <div>
-                    <h1>{active.title}</h1>
-                    <Badge tone="muted">
-                      V{active.version.toString().padStart(2, "0")}
-                    </Badge>
+                    <div>
+                      <h1 title={active.title}>{active.title}</h1>
+                      <Badge tone="muted">
+                        V{active.version.toString().padStart(2, "0")}
+                      </Badge>
+                    </div>
+                    <p>
+                      <span
+                        className={`tiny-dot ${active.stage === 6 ? "green-dot" : ""}`}
+                      />
+                      {busy
+                        ? "正在编排演示流程"
+                        : active.stage === 6
+                          ? "已完成本地交付"
+                          : info.stages[active.stage].description}
+                    </p>
                   </div>
-                  <p>
-                    <span
-                      className={`tiny-dot ${active.stage === 6 ? "green-dot" : ""}`}
-                    />
-                    {busy
-                      ? "正在编排演示流程"
-                      : active.stage === 6
-                        ? "已完成本地交付"
-                        : info.stages[active.stage].description}
-                  </p>
+                </div>
+                <div className="studio-actions">
+                  <button
+                    className="button secondary small"
+                    onClick={() => setModal("reset")}
+                  >
+                    <RotateCcw size={14} />
+                    重新演示
+                  </button>
+                  <button
+                    className="button secondary small"
+                    onClick={exportProject}
+                  >
+                    <ArrowDownToLine size={14} />
+                    导出项目
+                  </button>
                 </div>
               </div>
-              <div className="studio-actions">
-                <button
-                  className="button secondary small"
-                  onClick={() => setModal("reset")}
-                >
-                  <RotateCcw size={14} />
-                  重新演示
-                </button>
-                <button
-                  className="button secondary small"
-                  onClick={exportProject}
-                >
-                  <ArrowDownToLine size={14} />
-                  导出项目
-                </button>
+              <div className="studio-tabs">
+                <div>
+                  <button
+                    className={tab === "chat" ? "active" : ""}
+                    onClick={() => setTab("chat")}
+                  >
+                    <MessageSquare size={15} />
+                    创作对话
+                  </button>
+                  <button
+                    className={tab === "flow" ? "active" : ""}
+                    onClick={() => setTab("flow")}
+                  >
+                    <GitBranch size={15} />
+                    工作流
+                  </button>
+                  <button
+                    className={tab === "records" ? "active" : ""}
+                    onClick={() => setTab("records")}
+                  >
+                    <Clock3 size={15} />
+                    决策与版本<span>{active.decisions.length}</span>
+                  </button>
+                </div>
+                {active.kind !== "video" && focusToggle}
               </div>
             </div>
-            <div className="studio-tabs">
-              <div>
-                <button
-                  className={tab === "chat" ? "active" : ""}
-                  onClick={() => setTab("chat")}
-                >
-                  <MessageSquare size={15} />
-                  创作对话
-                </button>
-                <button
-                  className={tab === "flow" ? "active" : ""}
-                  onClick={() => setTab("flow")}
-                >
-                  <GitBranch size={15} />
-                  工作流
-                </button>
-                <button
-                  className={tab === "records" ? "active" : ""}
-                  onClick={() => setTab("records")}
-                >
-                  <Clock3 size={15} />
-                  决策与版本<span>{active.decisions.length}</span>
-                </button>
+            {active.kind === "video" && (
+              <div className="video-progress-row">
+                {stageRail}
+                {focusToggle}
               </div>
-              <button
-                className="focus-toggle"
-                disabled={!canPreviewResults}
-                title={
-                  canPreviewResults
-                    ? "专注查看本次成果"
-                    : "完成流程并确认交付后解锁"
-                }
-                onClick={() => {
-                  if (canPreviewResults) setFocusPreview(!focusPreview);
-                }}
-              >
-                <Monitor size={14} />
-                {focusPreview ? "回到创作" : "专注预览"}
-              </button>
-            </div>
+            )}
             {focusPreview && canPreviewResults ? (
               <div className="focus-preview">
                 {renderPreview({ large: true })}
@@ -1987,32 +2032,23 @@ export default function App() {
             ) : (
               <div className="workspace-columns">
                 <div className="conversation">
-                  <div className="stage-rail">
-                    {info.stages.map((s, i) => (
-                      <button
-                        key={s.id}
-                        title={s.title}
-                        aria-label={`查看${s.title}`}
-                        disabled={i > active.stage}
-                        className={`${i === shownStage ? "current" : ""} ${active.completed.includes(i) ? "done" : ""}`}
-                        onClick={() => setInspectedStage(i)}
-                      >
-                        <span>
-                          {active.completed.includes(i) ? (
-                            <Check size={11} />
-                          ) : (
-                            String(i + 1).padStart(2, "0")
-                          )}
-                        </span>
-                        <small>{s.shortTitle}</small>
-                      </button>
-                    ))}
-                  </div>
+                  {active.kind !== "video" && stageRail}
                   <div className="conversation-scroll" ref={conversationRef}>
-                    <div className="user-message">
-                      <span className="user-avatar">L</span>
-                      <div>{active.prompt}</div>
-                    </div>
+                    {active.kind === "video" ? (
+                      <details className="video-brief-summary">
+                        <summary>
+                          <FileText size={14} /> 创作需求
+                          <span>查看完整需求</span>
+                          <ChevronDown size={14} />
+                        </summary>
+                        <p>{active.prompt}</p>
+                      </details>
+                    ) : (
+                      <div className="user-message">
+                        <span className="user-avatar">L</span>
+                        <div>{active.prompt}</div>
+                      </div>
+                    )}
                     <div className="agent-message">
                       {active.kind === "video" ? (
                         <VideoWorkflow
@@ -2137,9 +2173,11 @@ export default function App() {
                         </button>
                       </div>
                     </div>
-                    <p className="composer-footnote">
-                      预设 Agent 流程演示 · 成品来自本地素材 · 不进行在线生成
-                    </p>
+                    {active.kind !== "video" && (
+                      <p className="composer-footnote">
+                        预设 Agent 流程演示 · 成品来自本地素材 · 不进行在线生成
+                      </p>
+                    )}
                   </div>
                 </div>
                 <aside className="preview-panel">

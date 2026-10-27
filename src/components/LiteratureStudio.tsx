@@ -239,52 +239,58 @@ function LockedResult({
           <LockKeyhole size={11} /> 尚未解锁
         </span>
       </div>
-      <div className="evidence-lock-art" aria-hidden="true">
-        {busy ? (
-          <LoaderCircle size={31} className="evidence-spin" strokeWidth={1.3} />
-        ) : (
-          <LockKeyhole size={31} strokeWidth={1.3} />
-        )}
-      </div>
-      <h3>
-        {busy
-          ? "正在整理本次报告"
-          : session.stage === 4
-            ? "完成流程后，查看完整报告"
-            : "先走完流程，再看见有依据的表达"}
-      </h3>
-      <p>
-        {busy
-          ? kind === "h5"
-            ? "逐段对照、审阅建议与来源记录将在全部流程完成后一起呈现。"
-            : "逐段对照、建议表达与来源记录将在全部流程完成后一起呈现。"
-          : session.stage === 4
-            ? kind === "h5"
-              ? "请在左侧确认交付范围。确认后解锁逐段结果、审阅建议与文献清单。"
-              : "请在左侧确认交付范围。确认后解锁逐段结果、完整建议稿与文献清单。"
-            : "从确认原文开始，核对主张与交付范围，让每一段内容有清楚的来处。"}
-      </p>
-      <div className="evidence-lock-progress">
-        <div>
-          <span>本轮流程</span>
-          <b>{progress} / 6 阶段</b>
+      <div className="evidence-locked-content">
+        <div className="evidence-lock-art" aria-hidden="true">
+          {busy ? (
+            <LoaderCircle
+              size={31}
+              className="evidence-spin"
+              strokeWidth={1.3}
+            />
+          ) : (
+            <LockKeyhole size={31} strokeWidth={1.3} />
+          )}
         </div>
-        <div
-          className="evidence-progress-track"
-          role="progressbar"
-          aria-label="文献报告解锁进度"
-          aria-valuenow={progress}
-          aria-valuemin={0}
-          aria-valuemax={6}
-        >
-          <span style={{ width: `${(progress / 6) * 100}%` }} />
-        </div>
+        <h3>
+          {busy
+            ? "正在整理本次报告"
+            : session.stage === 4
+              ? "完成流程后，查看完整报告"
+              : "先走完流程，再看见有依据的表达"}
+        </h3>
         <p>
-          <Clock3 size={11} /> 当前：{literatureSteps[session.stage]?.title}
+          {busy
+            ? kind === "h5"
+              ? "逐段对照、审阅建议与来源记录将在全部流程完成后一起呈现。"
+              : "逐段对照、建议表达与来源记录将在全部流程完成后一起呈现。"
+            : session.stage === 4
+              ? kind === "h5"
+                ? "请在左侧确认交付范围。确认后解锁逐段结果、审阅建议与文献清单。"
+                : "请在左侧确认交付范围。确认后解锁逐段结果、完整建议稿与文献清单。"
+              : "从确认原文开始，核对主张与交付范围，让每一段内容有清楚的来处。"}
         </p>
-      </div>
-      <div className="evidence-locked-footer">
-        重新演示或编辑原文后，成果会重新收起。
+        <div className="evidence-lock-progress">
+          <div>
+            <span>本轮流程</span>
+            <b>{progress} / 6 阶段</b>
+          </div>
+          <div
+            className="evidence-progress-track"
+            role="progressbar"
+            aria-label="文献报告解锁进度"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={6}
+          >
+            <span style={{ width: `${(progress / 6) * 100}%` }} />
+          </div>
+          <p>
+            <Clock3 size={11} /> 当前：{literatureSteps[session.stage]?.title}
+          </p>
+        </div>
+        <div className="evidence-locked-footer">
+          重新演示或编辑原文后，成果会重新收起。
+        </div>
       </div>
     </section>
   );
