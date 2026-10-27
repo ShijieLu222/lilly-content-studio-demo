@@ -1,0 +1,332 @@
+.video-brief-card {
+  background: #fff;
+  border: 1px solid #e9e0ec;
+  border-radius: 16px;
+  padding: 22px;
+  margin-top: 18px;
+}
+.video-brief-eyebrow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 9px;
+  letter-spacing: 1.3px;
+  color: #9a789d;
+}
+.video-brief-eyebrow span {
+  margin-left: auto;
+  letter-spacing: 0;
+  color: #74486f;
+}
+.video-brief-card h3 {
+  font-size: 18px;
+  margin: 15px 0 20px;
+}
+.video-brief-row {
+  display: grid;
+  grid-template-columns: 16px 70px 1fr;
+  gap: 8px;
+  padding: 11px 0;
+  border-bottom: 1px solid #f3edf4;
+  font-size: 11px;
+  line-height: 1.7;
+}
+.video-brief-row svg {
+  color: #8baa99;
+  margin-top: 3px;
+}
+.video-brief-row > span {
+  color: #a08497;
+}
+.video-brief-row strong {
+  font-weight: 500;
+}
+.video-source-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 18px 0 10px;
+}
+.video-source-pair figure {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #e9deec;
+  border-radius: 9px;
+}
+.video-source-pair img {
+  width: 100%;
+  display: block;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+}
+.video-source-pair figcaption {
+  font-size: 10px;
+  padding: 7px 10px;
+  background: #faf7fc;
+}
+.video-brief-card > small {
+  font-size: 10px;
+  color: #aa91a2;
+}
+.conference-concepts {
+  display: grid;
+  gap: 13px;
+}
+.conference-concept {
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  position: relative;
+  background: white;
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  border: 1px solid #eadfe8;
+  border-radius: 13px;
+  overflow: hidden;
+  color: inherit;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.conference-concept.chosen {
+  border-color: #a57d9e;
+  box-shadow: 0 0 0 2px #a57d9e14;
+}
+.conference-concept:focus-visible {
+  outline: 3px solid #bb92ae;
+  outline-offset: 3px;
+}
+.conference-concept-image {
+  position: relative;
+  background: #1c0738;
+  min-height: 160px;
+}
+.conference-concept-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.conference-concept-image > span {
+  position: absolute;
+  bottom: 11px;
+  left: 10px;
+  border: 1px solid #ffffff44;
+  background: #210c37b8;
+  padding: 4px 6px;
+  color: white;
+  border-radius: 5px;
+  font-size: 10px;
+}
+.conference-concept-copy {
+  padding: 17px 35px 17px 17px;
+}
+.conference-concept h4 {
+  margin: 6px 0 8px;
+  font-size: 16px;
+  font-weight: 550;
+}
+.conference-concept p {
+  font-size: 11px;
+  line-height: 1.8;
+  margin: 6px 0;
+  color: #9d8397;
+}
+.conference-concept .selection-circle {
+  position: absolute;
+  right: 12px;
+  top: 17px;
+}
+.conference-concept-reason {
+  border-top: 1px solid #f1e8ef;
+  padding-top: 10px;
+}
+.conference-storyboard {
+  display: grid;
+  gap: 12px;
+}
+.conference-storyboard article {
+  display: grid;
+  grid-template-columns: 42% 1fr;
+  border: 1px solid #eadfe9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: white;
+}
+.conference-storyboard article > div {
+  position: relative;
+  background: #18072b;
+  display: flex;
+  align-items: center;
+}
+.conference-storyboard img {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  display: block;
+}
+.conference-storyboard article > div > span {
+  position: absolute;
+  top: 7px;
+  left: 8px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: #1e1236b8;
+  color: white;
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+.conference-storyboard section {
+  padding: 14px;
+}
+.conference-storyboard small {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: #aa86a2;
+}
+.conference-storyboard h4 {
+  font-size: 13px;
+  margin: 5px 0 8px;
+}
+.conference-storyboard p {
+  font-size: 10px;
+  color: #9d8397;
+  line-height: 1.75;
+  margin: 0;
+}
+.video-review-target {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: linear-gradient(120deg, #faf4f8, #f4effa);
+  padding: 18px;
+  border: 1px solid #e8deee;
+  border-radius: 13px;
+  margin-bottom: 18px;
+}
+.video-review-target > svg {
+  color: #9a7595;
+  flex-shrink: 0;
+}
+.video-review-target > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.video-review-target small {
+  font-size: 10px;
+  color: #a28b9c;
+}
+.video-review-target strong {
+  font-size: 13px;
+}
+.video-review-target div > span {
+  font-size: 9px;
+  color: #a28b9c;
+  overflow-wrap: anywhere;
+}
+.conference-review-notes {
+  border: 1px solid #eee0c9;
+  background: #fdfaf4;
+  border-radius: 10px;
+  padding: 15px;
+  margin-top: 16px;
+  color: #a58a68;
+}
+.conference-review-notes > strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+}
+.conference-review-notes p {
+  font-size: 11px;
+  line-height: 1.85;
+  margin: 8px 0 0;
+}
+.video-return-current {
+  margin-top: 20px;
+}
+.video-home-frame {
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
+}
+.film-picture:has(.video-home-frame) {
+  overflow: hidden;
+}
+.film-picture:has(.video-home-frame) > svg {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  filter: drop-shadow(0 2px 9px #33134e);
+}
+@media (max-width: 650px) {
+  .conference-concept {
+    grid-template-columns: 1fr;
+  }
+  .conference-concept-image {
+    height: auto;
+    aspect-ratio: 16/9;
+    min-height: 0;
+  }
+  .conference-concept-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .conference-concept-copy {
+    padding: 16px;
+  }
+  .conference-concept .selection-circle {
+    top: 13px;
+    background: #fff;
+  }
+  .conference-storyboard article {
+    grid-template-columns: 1fr;
+  }
+  .conference-storyboard section {
+    padding: 12px 15px;
+  }
+  .video-brief-row {
+    grid-template-columns: 16px 62px 1fr;
+  }
+  .video-review-target {
+    flex-wrap: wrap;
+  }
+  .conference-storyboard p {
+    font-size: 12px;
+  }
+}
+
+.conference-concepts,
+.conference-storyboard {
+  container-type: inline-size;
+}
+@container (max-width: 440px) {
+  .conference-concept {
+    display: flex;
+    flex-direction: column;
+  }
+  .conference-concept-image {
+    width: 100%;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+  }
+  .conference-concept-image img {
+    object-fit: contain;
+  }
+  .conference-concept-copy {
+    padding: 16px;
+  }
+  .conference-concept .selection-circle {
+    background: white;
+  }
+  .conference-storyboard article {
+    display: block;
+  }
+  .conference-storyboard p {
+    font-size: 11px;
+  }
+}

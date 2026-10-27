@@ -1,0 +1,243 @@
+.result-pending {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #eee8ed;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 5px 24px #5a385904;
+}
+.rp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 9px;
+}
+.rp-eyebrow {
+  display: block;
+  color: #ad91a5;
+  font-size: 8px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+}
+.rp-header h3 {
+  margin-top: 8px;
+  color: #66505f;
+  font-size: 17px;
+  font-weight: 500;
+}
+.rp-lock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  padding: 6px 7px;
+  border: 1px solid #f0e7ed;
+  border-radius: 6px;
+  color: #aa90a2;
+  background: #fcf8fb;
+  font-size: 9px;
+}
+.rp-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 35px 12px 27px;
+  text-align: center;
+}
+.rp-symbol {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 68px;
+  height: 68px;
+  margin: 0 0 24px;
+  border: 1px solid #eadbe5;
+  border-radius: 21px;
+  background: linear-gradient(145deg, #fffafa, #f8f1f7);
+  color: #b28ca7;
+  box-shadow: 0 7px 24px #b78fab0b;
+}
+.rp-symbol::before,
+.rp-symbol::after {
+  content: "";
+  position: absolute;
+  width: 34px;
+  height: 1px;
+  top: 33px;
+  background: linear-gradient(90deg, #eadbe500, #e8dbe4);
+}
+.rp-symbol::before {
+  right: calc(100% + 10px);
+}
+.rp-symbol::after {
+  left: calc(100% + 10px);
+  transform: rotate(180deg);
+}
+.rp-message h4 {
+  max-width: 225px;
+  color: #82677b;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.85;
+  text-wrap: balance;
+}
+.rp-message p {
+  max-width: 245px;
+  margin-top: 10px;
+  color: #ac99a7;
+  font-size: 11px;
+  line-height: 1.9;
+}
+.rp-progress-section {
+  padding: 16px 0 17px;
+  border-top: 1px solid #f2eaf0;
+  border-bottom: 1px solid #f2eaf0;
+}
+.rp-progress-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+}
+.rp-progress-label > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #a0879a;
+}
+.rp-progress-label > strong {
+  color: #ac7b99;
+  font-size: 12px;
+  font-weight: 500;
+}
+.rp-progress-label small {
+  color: #b7a4b2;
+  font-size: 9px;
+  font-weight: 400;
+}
+.rp-progress-track {
+  height: 4px;
+  margin-top: 12px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #f7eff4;
+}
+.rp-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #dbb0c0, #b394bd);
+  transition: width 0.3s ease;
+}
+.rp-current {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  color: #a68a9e;
+  font-size: 9px;
+  line-height: 1.6;
+}
+.rp-current > span {
+  width: 4px;
+  height: 4px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #ba94ad;
+}
+.rp-milestones {
+  display: grid;
+  gap: 2px;
+  padding: 14px 0 0;
+  margin: 0;
+  list-style: none;
+}
+.rp-milestones > li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 0;
+  color: #c7b8c3;
+}
+.rp-milestone-index {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border: 1px solid #efe7ec;
+  border-radius: 6px;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.rp-milestone-name {
+  flex: 1;
+  color: #ab97a6;
+  font-size: 11px;
+}
+.rp-milestones small {
+  color: #c2b2bc;
+  font-size: 9px;
+}
+.rp-milestone-current .rp-milestone-index {
+  border-color: #e2cbd8;
+  background: #fbf4f8;
+  color: #ad809e;
+}
+.rp-milestone-current .rp-milestone-name,
+.rp-milestone-current small {
+  color: #a67d97;
+}
+.rp-milestone-done .rp-milestone-index {
+  color: #87a294;
+  border-color: #e2ece7;
+  background: #f4f8f5;
+}
+.rp-milestone-done .rp-milestone-name,
+.rp-milestone-done small {
+  color: #92a499;
+}
+.rp-retry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 9px;
+  margin-top: 12px;
+  color: #ad7d96;
+  background: #fbf3f7;
+  border: 1px solid #efdee7;
+  border-radius: 7px;
+  font-size: 11px;
+}
+.rp-footer {
+  margin-top: 17px;
+  color: #beaab9;
+  text-align: center;
+  font-size: 9px;
+  line-height: 1.8;
+}
+.rp-loading {
+  animation: rp-spin 2s linear infinite;
+}
+@keyframes rp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-loading {
+    animation: none;
+  }
+  .rp-progress-track > span {
+    transition: none;
+  }
+}
+@media (max-width: 650px) {
+  .result-pending {
+    padding: 17px;
+  }
+}

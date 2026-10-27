@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.work/
+.DS_Store
+*.local
+*.tsbuildinfo
+
+# Local exports, source extraction, and verification screenshots
+output/
+*.zip
+*.zip.tmp
+
+# Local credentials and environment configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+.codex/
+.agents/

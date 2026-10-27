@@ -1,0 +1,83 @@
+{
+  "source": "User-provided local conference opening videos",
+  "versions": [
+    {
+      "version": "A",
+      "file": "conference-opening-a.mp4",
+      "userOriginal": "47ef63d8-c3aa-4717-bb02-fa6b601710a5.mp4",
+      "sha256": "b76f58fffd1598a0d289d60d268612478b0e947d08307f098457c22809b06fce",
+      "originalUnchanged": true,
+      "metadata": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "index": 0,
+            "codec_name": "h264",
+            "codec_type": "video",
+            "width": 1920,
+            "height": 1080,
+            "r_frame_rate": "30/1",
+            "duration": "5.033333"
+          },
+          {
+            "index": 1,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "r_frame_rate": "0/0",
+            "duration": "5.015011"
+          }
+        ],
+        "format": {
+          "duration": "5.033333",
+          "size": "1629105"
+        }
+      },
+      "sceneTimesSeconds": [
+        0.0,
+        1.5,
+        3.0,
+        4.6
+      ]
+    },
+    {
+      "version": "B",
+      "file": "conference-opening-b.mp4",
+      "userOriginal": "45d17732225fa07ce494c296407c6b6c.mp4",
+      "sha256": "8da666d33e11b2485ef080597648735b5fd5f254507d793f27488bb625119266",
+      "originalUnchanged": true,
+      "metadata": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "index": 0,
+            "codec_name": "h264",
+            "codec_type": "video",
+            "width": 1280,
+            "height": 720,
+            "r_frame_rate": "24/1",
+            "duration": "6.041667"
+          },
+          {
+            "index": 1,
+            "codec_name": "aac",
+            "codec_type": "audio",
+            "r_frame_rate": "0/0",
+            "duration": "6.082993"
+          }
+        ],
+        "format": {
+          "duration": "6.082993",
+          "size": "2637822"
+        }
+      },
+      "sceneTimesSeconds": [
+        0.0,
+        2.0,
+        3.4,
+        5.5
+      ]
+    }
+  ]
+}
