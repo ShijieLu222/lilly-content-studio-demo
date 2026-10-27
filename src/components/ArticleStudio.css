@@ -1,0 +1,118 @@
+/* Article content uses the shared compact workspace without shrinking its art. */
+.article-studio .agent-message-head > strong {
+  font-size: 12px;
+}
+.article-studio .agent-intro {
+  font-size: 12px;
+  line-height: 1.8;
+  margin-bottom: 14px;
+}
+.article-studio .source-strip {
+  font-size: 11px;
+  margin-bottom: 16px;
+}
+.article-studio .stage-label h3 {
+  font-size: 14px;
+}
+.article-studio .concept-card,
+.article-studio .layout-option {
+  padding: 12px;
+  gap: 12px;
+}
+.article-studio .concept-body h4,
+.article-studio .layout-copy h4 {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.article-studio .concept-eyebrow,
+.article-studio .concept-tags > span {
+  font-size: 10px;
+  line-height: 1.5;
+}
+.article-studio .concept-body > p,
+.article-studio .concept-expanded,
+.article-studio .concept-expanded p,
+.article-studio .layout-copy p {
+  font-size: 12px;
+  line-height: 1.75;
+}
+.article-studio .layout-copy {
+  min-width: 0;
+}
+.article-studio .layout-copy > span,
+.article-studio .decision-summary,
+.article-studio .gate-actions > span {
+  font-size: 11px;
+}
+.article-studio .gate-actions {
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 13px;
+}
+.article-studio .gate-actions .button {
+  font-size: 12px;
+}
+.article-studio .note {
+  font-size: 11px;
+}
+.article-studio .missing-assets strong {
+  font-size: 12px;
+}
+.article-studio .missing-assets p {
+  font-size: 11px;
+}
+
+/* Only the embedded results panel changes; enlarged and modal views stay intact. */
+.article-studio .preview-panel .result-preview {
+  padding: 18px;
+}
+.article-studio .preview-panel .preview-heading {
+  margin-bottom: 12px;
+  gap: 10px;
+}
+.article-studio .preview-panel .preview-heading .eyebrow {
+  display: none;
+}
+.article-studio .preview-panel .preview-heading h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.4;
+}
+.article-studio .preview-panel .preview-heading .badge {
+  font-size: 11px;
+}
+.article-studio .preview-panel .preview-segment {
+  gap: 20px;
+  margin-bottom: 12px;
+}
+.article-studio .preview-panel .preview-segment button {
+  font-size: 12px;
+}
+.article-studio .preview-panel .preview-canvas {
+  padding: 12px;
+}
+.article-studio .preview-panel .poster-thumbnails {
+  margin-top: 12px;
+}
+.article-studio .preview-panel .poster-thumbnails > button > span {
+  font-size: 10px;
+  line-height: 20px;
+}
+.article-studio .preview-panel .preview-caption {
+  font-size: 11px;
+  margin-top: 10px;
+}
+.article-studio .preview-panel .preview-caption .icon-button {
+  width: 30px;
+  height: 30px;
+}
+.article-studio .preview-panel .long-section h4 {
+  font-size: 14px;
+}
+.article-studio .preview-panel .long-section p {
+  font-size: 12px;
+  line-height: 1.8;
+}
+.article-studio .preview-panel .long-article > footer {
+  font-size: 10px;
+}

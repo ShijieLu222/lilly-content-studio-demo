@@ -59,7 +59,8 @@ import { isResultReady } from "./lib/workflowState";
 import { videoVersions } from "./videoDemo";
 import { getAssets, assetSlots } from "./lib/assets";
 import type { Asset } from "./lib/assets";
-import "./components/VideoStudio.css";
+import "./components/CreativeStudio.css";
+import "./components/ArticleStudio.css";
 
 type Decision = { stage: number; text: string; at: string; version: number };
 type Project = {
@@ -1308,10 +1309,8 @@ export default function App() {
           className={`${i === shownStage ? "current" : ""} ${active.completed.includes(i) ? "done" : ""}`}
           onClick={() => {
             setInspectedStage(i);
-            if (active.kind === "video") {
-              setTab("chat");
-              setFocusPreview(false);
-            }
+            setTab("chat");
+            setFocusPreview(false);
           }}
         >
           <span>
@@ -1856,9 +1855,7 @@ export default function App() {
           />
         )}
         {page === "studio" && active && (
-          <div
-            className={`studio-page${active.kind === "video" ? " video-studio" : ""}`}
-          >
+          <div className={`studio-page compact-studio ${active.kind}-studio`}>
             <div className="studio-toolbar">
               <div className="studio-heading">
                 <div className="studio-title">
@@ -1929,15 +1926,12 @@ export default function App() {
                     决策与版本<span>{active.decisions.length}</span>
                   </button>
                 </div>
-                {active.kind !== "video" && focusToggle}
               </div>
             </div>
-            {active.kind === "video" && (
-              <div className="video-progress-row">
-                {stageRail}
-                {focusToggle}
-              </div>
-            )}
+            <div className="studio-progress-row">
+              {stageRail}
+              {focusToggle}
+            </div>
             {focusPreview && canPreviewResults ? (
               <div className="focus-preview">
                 {renderPreview({ large: true })}
@@ -2032,23 +2026,15 @@ export default function App() {
             ) : (
               <div className="workspace-columns">
                 <div className="conversation">
-                  {active.kind !== "video" && stageRail}
                   <div className="conversation-scroll" ref={conversationRef}>
-                    {active.kind === "video" ? (
-                      <details className="video-brief-summary">
-                        <summary>
-                          <FileText size={14} /> 创作需求
-                          <span>查看完整需求</span>
-                          <ChevronDown size={14} />
-                        </summary>
-                        <p>{active.prompt}</p>
-                      </details>
-                    ) : (
-                      <div className="user-message">
-                        <span className="user-avatar">L</span>
-                        <div>{active.prompt}</div>
-                      </div>
-                    )}
+                    <details className="studio-brief-summary">
+                      <summary>
+                        <FileText size={14} /> 创作需求
+                        <span>查看完整需求</span>
+                        <ChevronDown size={14} />
+                      </summary>
+                      <p>{active.prompt}</p>
+                    </details>
                     <div className="agent-message">
                       {active.kind === "video" ? (
                         <VideoWorkflow
@@ -2173,11 +2159,6 @@ export default function App() {
                         </button>
                       </div>
                     </div>
-                    {active.kind !== "video" && (
-                      <p className="composer-footnote">
-                        预设 Agent 流程演示 · 成品来自本地素材 · 不进行在线生成
-                      </p>
-                    )}
                   </div>
                 </div>
                 <aside className="preview-panel">
