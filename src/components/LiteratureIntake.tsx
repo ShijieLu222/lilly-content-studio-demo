@@ -17,6 +17,12 @@ import {
 import { h5Case, scriptCase } from "../literatureData";
 import { caseInput, validateLiteratureInput } from "../lib/literatureWorkflow";
 import { isExampleSubmission } from "../lib/literatureSubmission";
+import {
+  readLiteratureDocument,
+  recognizeImageText,
+  waitForTextPreview,
+  type ImageTextProgress,
+} from "../lib/literatureImport";
 import "./LiteratureIntake.css";
 
 export type LiteratureSubmission = {
@@ -39,6 +45,11 @@ type IntakeProps = {
 const MAX_IMAGES = 8;
 
 type ExampleImage = LiteratureSubmission["images"][number];
+type ImageParseState = ImageTextProgress & {
+  status: "queued" | "parsing" | "ready" | "failed";
+  example?: boolean;
+  error?: string;
+};
 let exampleImagesByHash: Promise<Map<string, ExampleImage>> | undefined;
 
 async function imageHash(bytes: ArrayBuffer): Promise<string> {
@@ -199,13 +210,23 @@ export default function LiteratureIntake({
   const [error, setError] = useState("");
   const [uploadNote, setUploadNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [parseStates, setParseStates] = useState<
+    Record<string, ImageParseState>
+  >({});
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const inputToken = useRef(0);
+  const importController = useRef<AbortController | null>(null);
+  const importing = useRef(false);
   const imagesRef = useRef(images);
   imagesRef.current = images;
   const selectedImage =
     images.find((image) => image.id === selectedId) || images[0];
+  const selectedParse = selectedImage
+    ? parseStates[selectedImage.id]
+    : undefined;
+  const parsingSelected =
+    selectedParse?.status === "parsing" || selectedParse?.status === "queued";
   const combinedText =
     kind === "script" ? text : images.map((image) => image.text).join("\n\n");
   const validation = validateLiteratureInput(combinedText);
@@ -218,74 +239,194 @@ export default function LiteratureIntake({
   useEffect(
     () => () => {
       inputToken.current++;
+      importController.current?.abort();
     },
     [],
   );
 
-  function loadExample() {
-    inputToken.current++;
+  function beginImport() {
+    importController.current?.abort();
+    const controller = new AbortController();
+    importController.current = controller;
+    const token = ++inputToken.current;
+    importing.current = true;
+    setBusy(true);
+    setError("");
+    setUploadNote("");
+    return { token, signal: controller.signal };
+  }
+
+  function finishImport(token: number) {
+    if (inputToken.current !== token) return;
+    importing.current = false;
     setBusy(false);
+    importController.current = null;
+  }
+
+  async function parseImageTexts(
+    pendingImages: LiteratureSubmission["images"],
+    originals: Map<string, string>,
+    token: number,
+    signal: AbortSignal,
+  ) {
+    const current = () => inputToken.current === token && !signal.aborted;
+    const failures: string[] = [];
+    for (const image of pendingImages) {
+      if (!current()) return;
+      const exampleText = originals.get(image.id);
+      const report = (value: ImageTextProgress) => {
+        if (current())
+          setParseStates((states) => ({
+            ...states,
+            [image.id]: {
+              status: "parsing",
+              example: exampleText !== undefined,
+              ...value,
+            },
+          }));
+      };
+      try {
+        let parsed: string;
+        if (exampleText !== undefined) {
+          report({ phase: "读取示例图片", progress: 0.2 });
+          await waitForTextPreview(400, signal);
+          report({ phase: "整理图片文字", progress: 0.65 });
+          await waitForTextPreview(500, signal);
+          parsed = exampleText;
+        } else {
+          parsed = await recognizeImageText(image.src, signal, report);
+        }
+        if (!current()) return;
+        // Never restore a removed image or replace text in another upload run.
+        const next = imagesRef.current.map((item) =>
+          item.id === image.id ? { ...item, text: parsed } : item,
+        );
+        imagesRef.current = next;
+        setImages(next);
+        setParseStates((states) => ({
+          ...states,
+          [image.id]: {
+            status: "ready",
+            phase: "文字已解析",
+            progress: 1,
+            example: exampleText !== undefined,
+          },
+        }));
+      } catch (reason) {
+        if (!current()) return;
+        const message =
+          reason instanceof Error
+            ? reason.message
+            : "解析失败，请手动补充文字。";
+        failures.push(image.name);
+        setParseStates((states) => ({
+          ...states,
+          [image.id]: {
+            status: "failed",
+            phase: "请手动补充文字",
+            error: message,
+          },
+        }));
+      }
+    }
+    if (!current()) return;
+    const nextImages = imagesRef.current;
+    const example = isExampleSubmission({
+      kind: "h5",
+      mode: "example",
+      title: title || "H5 图片文献支持",
+      text: nextImages.map((image) => image.text).join("\n\n"),
+      images: nextImages,
+    });
+    setMode(example ? "example" : "custom");
+    if (failures.length)
+      setUploadNote(
+        `${failures.length} 张图片未能完成文字解析，可选择对应图片手动补充。`,
+      );
+    else
+      setUploadNote(
+        example
+          ? "三张图片文字已整理完成，可逐图核对后开始分析。"
+          : "图片文字已解析，请核对数字、标点和引用编号后继续。",
+      );
+  }
+
+  async function loadExample() {
+    if (importing.current) return;
     setError("");
     setUploadNote("");
     setMode("example");
     if (kind === "script") {
       setTitle(scriptCase.title);
       setText(caseInput(scriptCase));
-    } else {
-      const exampleImages = (h5Case.images || []).map((image) => ({
-        id: image.id,
-        src: image.src,
-        name: image.label,
-        text: h5Case.segments
+      return;
+    }
+    const { token, signal } = beginImport();
+    const exampleImages = (h5Case.images || []).map((image) => ({
+      id: image.id,
+      src: image.src,
+      name: image.label,
+      text: "",
+    }));
+    const originals = new Map(
+      exampleImages.map((image) => [
+        image.id,
+        h5Case.segments
           .filter((segment) => segment.imageId === image.id)
           .map((segment) => segment.original)
           .join("\n\n"),
-      }));
-      setImages(exampleImages);
-      setSelectedId(exampleImages[0]?.id || "");
-      setTitle(h5Case.title);
+      ]),
+    );
+    imagesRef.current = exampleImages;
+    setImages(exampleImages);
+    setParseStates(
+      Object.fromEntries(
+        exampleImages.map((image) => [
+          image.id,
+          { status: "queued", phase: "等待解析", example: true },
+        ]),
+      ),
+    );
+    setSelectedId(exampleImages[0]?.id || "");
+    setTitle(h5Case.title);
+    try {
+      await parseImageTexts(exampleImages, originals, token, signal);
+    } finally {
+      finishImport(token);
     }
   }
 
   async function importFiles(files: File[]) {
-    if (!files.length || busy) return;
-    const token = ++inputToken.current;
+    if (!files.length || importing.current) return;
     setError("");
     setUploadNote("");
     if (kind === "script") {
+      if (files.length !== 1) {
+        setError("请一次上传一份 Word（.docx）或 TXT 文件。");
+        return;
+      }
       const file = files[0];
-      if (files.length !== 1 || !/\.txt$/i.test(file.name)) {
-        setError("请上传一份 UTF-8 TXT 文本，或直接粘贴脚本。");
-        return;
-      }
-      if (!file.size || file.size > 2 * 1024 * 1024) {
-        setError("请选择 2 MB 以内的非空 TXT 文件。");
-        return;
-      }
-      setBusy(true);
+      const { token } = beginImport();
       try {
-        const next = await file.text();
+        const next = await readLiteratureDocument(file);
         if (inputToken.current !== token) return;
-        if (next.includes("\0") || next.includes("\uFFFD"))
-          throw new Error(
-            "文件编码无法识别，请另存为 UTF-8 TXT，或直接粘贴文字。",
-          );
         const issue = validateLiteratureInput(next);
         if (issue) throw new Error(issue);
         setText(next);
-        setTitle(file.name.replace(/\.txt$/i, ""));
+        setTitle(file.name.replace(/\.(?:docx|txt)$/i, ""));
         setMode("custom");
+        setUploadNote(`已读取「${file.name}」的文字，保留原有段落。`);
       } catch (err) {
         if (inputToken.current === token)
           setError(
-            err instanceof Error ? err.message : "文本读取失败，请重试。",
+            err instanceof Error ? err.message : "文稿读取失败，请重试。",
           );
       } finally {
-        if (inputToken.current === token) setBusy(false);
+        finishImport(token);
       }
       return;
     }
-    if (files.length + images.length > MAX_IMAGES) {
+    if (files.length + imagesRef.current.length > MAX_IMAGES) {
       setError(`最多上传 ${MAX_IMAGES} 张图片。请先移除不需要的图片。`);
       return;
     }
@@ -301,7 +442,7 @@ export default function LiteratureIntake({
       );
       return;
     }
-    setBusy(true);
+    const { token, signal } = beginImport();
     try {
       const decoded = await Promise.all(
         files.map(async (file) => {
@@ -315,47 +456,78 @@ export default function LiteratureIntake({
       if (inputToken.current !== token) return;
       const current = imagesRef.current;
       const usedIds = new Set(current.map((image) => image.id));
+      const originals = new Map<string, string>();
       const uploaded = decoded.map(({ file, src, original }) => {
         const id =
           original && !usedIds.has(original.id)
             ? original.id
             : crypto.randomUUID();
         usedIds.add(id);
-        return {
-          id,
-          name: file.name,
-          src: original?.src || src,
-          text: original?.text || "",
-        };
+        if (original) originals.set(id, original.text);
+        return { id, name: file.name, src: original?.src || src, text: "" };
       });
       const nextImages = [...current, ...uploaded];
-      const nextTitle = title || "H5 图片文献支持";
-      const isCompleteExample = isExampleSubmission({
-        kind: "h5",
-        mode: "example",
-        title: nextTitle,
-        text: nextImages.map((image) => image.text).join("\n\n"),
-        images: nextImages,
-      });
+      imagesRef.current = nextImages;
       setImages(nextImages);
+      setParseStates((states) => ({
+        ...states,
+        ...Object.fromEntries(
+          uploaded.map((image) => [
+            image.id,
+            {
+              status: "queued",
+              phase: "等待解析",
+              example: originals.has(image.id),
+            },
+          ]),
+        ),
+      }));
       setSelectedId(uploaded[0].id);
-      setTitle(nextTitle);
-      setMode(isCompleteExample ? "example" : "custom");
-      const recognizedCount = decoded.filter((item) => item.original).length;
-      if (recognizedCount)
-        setUploadNote(
-          `${recognizedCount} 张已识别为示例原图，载入已整理文字。${isCompleteExample ? "三张原图齐全，可查看预置文献分析。" : "当前组合将作为新内容整理，文献待核查。"}`,
-        );
+      setTitle(title || "H5 图片文献支持");
+      setMode("custom");
+      await parseImageTexts(uploaded, originals, token, signal);
     } catch (err) {
       if (inputToken.current === token)
         setError(err instanceof Error ? err.message : "图片读取失败，请重试。");
     } finally {
-      if (inputToken.current === token) setBusy(false);
+      finishImport(token);
     }
   }
 
+  function cancelImageParsing() {
+    inputToken.current++;
+    importController.current?.abort();
+    importController.current = null;
+    importing.current = false;
+    setBusy(false);
+    setMode("custom");
+    setParseStates((states) =>
+      Object.fromEntries(
+        Object.entries(states).map(([id, state]) => [
+          id,
+          state.status === "queued" || state.status === "parsing"
+            ? {
+                status: "failed",
+                phase: "请手动补充文字",
+                error: "文字解析已停止，可手动补充内容。",
+              }
+            : state,
+        ]),
+      ),
+    );
+    setUploadNote("已停止解析，已完成的文字会保留；其余图片可手动补充。");
+  }
+
   function removeImage(id: string) {
-    setImages((current) => current.filter((image) => image.id !== id));
+    if (importing.current) cancelImageParsing();
+    const next = imagesRef.current.filter((image) => image.id !== id);
+    imagesRef.current = next;
+    setImages(next);
+    setParseStates((states) => {
+      const nextStates = { ...states };
+      delete nextStates[id];
+      return nextStates;
+    });
     setMode("custom");
     setError("");
     setUploadNote("");
@@ -425,7 +597,7 @@ export default function LiteratureIntake({
             type="file"
             accept={
               kind === "script"
-                ? ".txt,text/plain"
+                ? ".docx,.doc,.txt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain"
                 : "image/png,image/jpeg,image/webp"
             }
             multiple={kind === "h5"}
@@ -445,14 +617,14 @@ export default function LiteratureIntake({
               <strong>{kind === "script" ? "脚本原文" : "H5 图片"}</strong>
               <span>
                 {kind === "script"
-                  ? "TXT / 粘贴文字"
+                  ? "Word / TXT / 粘贴文字"
                   : `${images.length} / ${MAX_IMAGES} 张`}
               </span>
             </div>
             <button
               className="li-text-button"
               type="button"
-              onClick={loadExample}
+              onClick={() => void loadExample()}
               disabled={busy}
             >
               <Sparkles size={13} />
@@ -465,13 +637,14 @@ export default function LiteratureIntake({
                 className="li-script-input"
                 aria-label="脚本原文"
                 value={text}
+                disabled={busy}
                 onChange={(event) => {
                   setText(event.target.value);
                   setMode("custom");
                   setError("");
                 }}
                 placeholder={
-                  "将需要分析的脚本粘贴在这里……\n\n也可以拖入一份 TXT 文本。使用空行区分段落，后续可逐段核对。"
+                  "将需要分析的脚本粘贴在这里……\n\n也可以拖入 Word（.docx）或 TXT 文件，保留原文段落，后续可逐段核对。"
                 }
               />
               <div className="li-input-footer">
@@ -481,7 +654,7 @@ export default function LiteratureIntake({
                   disabled={busy}
                 >
                   <Upload size={14} />
-                  上传 TXT 文本
+                  上传 Word / TXT
                 </button>
                 <span>{text.length.toLocaleString()} / 40,000 字</span>
               </div>
@@ -527,13 +700,18 @@ export default function LiteratureIntake({
                             {image.name}
                           </span>
                           <small>
-                            {image.text.trim() ? "已填写文字" : "待补充文字"}
+                            {parseStates[image.id]?.status === "parsing"
+                              ? "正在解析文字…"
+                              : parseStates[image.id]?.status === "queued"
+                                ? "等待解析"
+                                : image.text.trim()
+                                  ? "文字已准备好"
+                                  : "待手动补充文字"}
                           </small>
                         </button>
                         <button
                           className="li-image-remove"
                           type="button"
-                          disabled={busy}
                           onClick={() => removeImage(image.id)}
                           aria-label={`移除图片 ${index + 1}：${image.name}`}
                         >
@@ -554,7 +732,10 @@ export default function LiteratureIntake({
                     )}
                   </div>
                   {selectedImage && (
-                    <div className="li-image-transcript">
+                    <div
+                      className="li-image-transcript"
+                      aria-busy={parsingSelected}
+                    >
                       <div>
                         <strong>这张图的文字内容</strong>
                         <span>
@@ -564,27 +745,77 @@ export default function LiteratureIntake({
                           ) + 1}
                         </span>
                       </div>
-                      <textarea
-                        aria-label={`图片 ${images.findIndex((image) => image.id === selectedImage.id) + 1} 的文字内容`}
-                        value={selectedImage.text}
-                        onChange={(event) => {
-                          setImages((current) =>
-                            current.map((image) =>
-                              image.id === selectedImage.id
-                                ? { ...image, text: event.target.value }
-                                : image,
-                            ),
-                          );
-                          setMode("custom");
-                          setError("");
-                        }}
-                        placeholder="粘贴或输入这张图片中的文字，使用空行区分内容段落。"
-                      />
-                      <small>
-                        {mode === "example"
-                          ? "示例文字已按原图整理，可点击不同图片核对。"
-                          : "请补充图片中的文字后继续；当前演示尚未接入自动文字识别。"}
-                      </small>
+                      {parsingSelected ? (
+                        <div
+                          className="li-parse-panel"
+                          role="status"
+                          aria-live="polite"
+                        >
+                          <div className="li-parse-icon">
+                            <FileSearch size={27} strokeWidth={1.4} />
+                            <LoaderCircle size={14} className="li-spin" />
+                          </div>
+                          <strong>
+                            {selectedParse.status === "queued"
+                              ? "等待解析图片文字"
+                              : "正在解析图片文字"}
+                          </strong>
+                          <p>
+                            {selectedParse.phase}
+                            {selectedParse.progress !== undefined &&
+                              ` · ${Math.round(selectedParse.progress * 100)}%`}
+                          </p>
+                          <progress
+                            max={1}
+                            value={selectedParse.progress}
+                            aria-label="图片文字解析进度"
+                          />
+                          <small>
+                            {selectedParse.example
+                              ? "正在按原图整理示例文字，完成后可逐图核对。"
+                              : "解析完成后，文字会显示在这里供你核对与编辑。"}
+                          </small>
+                          <button type="button" onClick={cancelImageParsing}>
+                            停止解析，手动填写
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          {selectedParse?.error && (
+                            <p className="li-parse-error" role="status">
+                              {selectedParse.error}
+                            </p>
+                          )}
+                          <textarea
+                            aria-label={`图片 ${images.findIndex((image) => image.id === selectedImage.id) + 1} 的文字内容`}
+                            value={selectedImage.text}
+                            onChange={(event) => {
+                              const next = imagesRef.current.map((image) =>
+                                image.id === selectedImage.id
+                                  ? { ...image, text: event.target.value }
+                                  : image,
+                              );
+                              imagesRef.current = next;
+                              setImages(next);
+                              setParseStates((states) => ({
+                                ...states,
+                                [selectedImage.id]: {
+                                  status: "ready",
+                                  phase: "文字已填写",
+                                },
+                              }));
+                              setMode("custom");
+                              setError("");
+                            }}
+                            placeholder="粘贴或输入这张图片中的文字，使用空行区分内容段落。"
+                          />
+                          <small className="li-transcript-note">
+                            {selectedParse?.example
+                              ? "示例文字已按原图整理，可点击不同图片核对。"
+                              : "请对照原图核对文字、数字与引用编号，可在这里直接修改。"}
+                          </small>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -593,21 +824,26 @@ export default function LiteratureIntake({
                 <div className="li-image-summary">
                   <span>
                     已添加 {images.length} 张图片 ·{" "}
-                    {combinedText.length.toLocaleString()} 字
+                    {images
+                      .reduce((count, image) => count + image.text.length, 0)
+                      .toLocaleString()}{" "}
+                    字
                   </span>
                   <span>
-                    {missingText
-                      ? `${missingText} 张待补充文字`
-                      : "各图文字已准备好"}
+                    {busy
+                      ? "正在解析图片文字…"
+                      : missingText
+                        ? `${missingText} 张待补充文字`
+                        : "各图文字已准备好"}
                   </span>
                 </div>
               )}
             </>
           )}
-          {busy && (
+          {busy && (kind === "script" || !images.length) && (
             <div className="li-feedback" role="status">
               <LoaderCircle className="li-spin" size={15} />
-              正在读取文件…
+              {kind === "script" ? "正在解析文稿文字…" : "正在读取图片…"}
             </div>
           )}
           {!busy && uploadNote && (

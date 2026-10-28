@@ -21,6 +21,7 @@ import {
   FileText,
   ImagePlus,
   List,
+  LoaderCircle,
   Pencil,
   RotateCcw,
   ShieldCheck,
@@ -42,11 +43,16 @@ import {
   evidenceStatusLabels,
 } from "../lib/literatureWorkflow";
 import {
-  createEditableRtf,
   revisionKind,
   revisionRuns,
   type RevisionRun,
 } from "../lib/literatureEditor";
+import {
+  citedReferenceNumbers,
+  normalizeInlineCitations,
+  proposedCitedText,
+  splitCitationText,
+} from "../lib/literatureCitations";
 import {
   referenceDestination,
   referenceDoiUrl,
@@ -143,8 +149,10 @@ function restoreEditor(item: LiteratureCase, storageKey: string): EditorStore {
 }
 const citation = (ref: EvidenceReference) =>
   `${ref.authors}. ${ref.title}. ${ref.publication}${ref.doi ? ` DOI: ${ref.doi}` : ""} ${referenceDestination(ref).isSearch ? "检索入口（原文待定位）：" : ""}${referenceDestination(ref).url}`;
-function download(content: string, name: string, type: string) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
+function download(content: string | Blob, name: string, type?: string) {
+  const url = URL.createObjectURL(
+    content instanceof Blob ? content : new Blob([content], { type }),
+  );
   const link = document.createElement("a");
   link.href = url;
   link.download = name;
@@ -182,11 +190,11 @@ function CitedText({
   text: string;
   references: Map<string, EvidenceReference>;
 }) {
-  return text.split(/(\[\d+(?:[,，\s]+\d+)*\])/g).map((part, index) =>
-    /^\[\d+(?:[,，\s]+\d+)*\]$/.test(part) ? (
-      <span key={index}>
+  return splitCitationText(text).map((part, index) =>
+    part.numbers ? (
+      <sup key={index} className="le-citation-marker">
         [
-        {part
+        {part.text
           .slice(1, -1)
           .split(/(\d+)/g)
           .map((token, tokenIndex) => {
@@ -204,9 +212,9 @@ function CitedText({
             );
           })}
         ]
-      </span>
+      </sup>
     ) : (
-      part
+      part.text
     ),
   );
 }
@@ -268,9 +276,9 @@ export default function LiteratureStudio({
     sequence: number;
   } | null>(null);
   const [showExport, setShowExport] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [notice, setNotice] = useState("");
   const [storageFailed, setStorageFailed] = useState(false);
-  const [includeReferences, setIncludeReferences] = useState(true);
   const exportMenu = useRef<HTMLDivElement>(null);
   const documentScroll = useRef<HTMLDivElement>(null);
   const reviewScroll = useRef<HTMLDivElement>(null);
@@ -322,19 +330,27 @@ export default function LiteratureStudio({
     segment.original !== segment.revised &&
     (currentCase.kind !== "h5" || segment.status === "supported");
   const proposed = (segment: LiteratureSegment) => {
-    if (!canApply(segment)) return segment.original;
-    const numbers = [
-      ...new Set(segment.evidence.map((link) => refNumber(link.referenceId))),
-    ];
-    return (
-      segment.revised +
-      (currentCase.kind === "script" && numbers.length
-        ? ` [${numbers.join(",")}]`
-        : "")
-    );
+    if (!canApply(segment)) return normalizeInlineCitations(segment.original);
+    return proposedCitedText(segment, refNumber);
   };
-  const draft = (segment: LiteratureSegment) =>
-    document.drafts[segment.id] ?? segment.original;
+  const draft = (segment: LiteratureSegment) => {
+    const saved = document.drafts[segment.id];
+    if (
+      saved !== undefined &&
+      currentCase.kind === "script" &&
+      canApply(segment)
+    ) {
+      const numbers = [
+        ...new Set(segment.evidence.map((link) => refNumber(link.referenceId))),
+      ];
+      const legacyProposal =
+        segment.revised + (numbers.length ? ` [${numbers.join(",")}]` : "");
+      // Move only the exact former automatic suggestion. User edits retain
+      // their citation placement and are never treated as new evidence.
+      if (saved === legacyProposal) return proposed(segment);
+    }
+    return normalizeInlineCitations(saved ?? segment.original);
+  };
   const pending = segments.filter(
     (segment) =>
       canApply(segment) &&
@@ -342,7 +358,7 @@ export default function LiteratureStudio({
       !document.ignored.includes(segment.id),
   );
   const changed = segments.filter(
-    (segment) => draft(segment) !== segment.original,
+    (segment) => draft(segment) !== normalizeInlineCitations(segment.original),
   ).length;
   const activeRefs = active
     ? references.filter((ref) =>
@@ -357,20 +373,15 @@ export default function LiteratureStudio({
     ? `${currentCase.title} · ${selectedImage.label}`
     : currentCase.title;
   const finalBody = segments.map(draft).join("\n\n");
-  const citedNumbers = new Set(
-    [...finalBody.matchAll(/\[([\d,，\s]+)\]/g)].flatMap((match) =>
-      match[1].split(/[,，\s]+/),
-    ),
-  );
-  const finalReferences = includeReferences
-    ? references
-        .filter((ref) => citedNumbers.has(refNumber(ref.id)))
-        .map((ref) => ({
-          reference: ref,
-          text: `[${refNumber(ref.id)}] ${citation(ref)}`,
-          url: referenceDestination(ref).url,
-        }))
-    : [];
+  const citedNumbers = citedReferenceNumbers(finalBody);
+  const finalReferences = references
+    .filter((ref) => citedNumbers.has(refNumber(ref.id)))
+    .map((ref) => ({
+      reference: ref,
+      number: refNumber(ref.id),
+      text: `[${refNumber(ref.id)}] ${citation(ref)}`,
+      url: referenceDestination(ref).url,
+    }));
   const finalText = `${title}\n\n${finalBody}${finalReferences.length ? `\n\n参考文献\n${finalReferences.map((ref) => ref.text).join("\n\n")}` : ""}`;
 
   function updateDocument(
@@ -496,41 +507,35 @@ export default function LiteratureStudio({
       setNotice("浏览器未允许复制，请使用导出按钮保存文稿。");
     }
   }
-  function exportDocument(format: "txt" | "rtf" | "marked") {
+  async function exportDocument(format: "txt" | "docx") {
+    if (exporting) return;
+    setExporting(true);
     const filename = title.replace(/[\\/:*?"<>|]/g, "-");
-    if (format === "txt")
-      download(
-        finalText,
-        `${filename}-当前文稿.txt`,
-        "text/plain;charset=utf-8",
-      );
-    else {
-      const paragraphs = segments.map((segment) =>
-        format === "marked"
-          ? revisionRuns(
-              segment.original,
-              draft(segment),
-              draft(segment) === proposed(segment)
-                ? revisionKind(segment)
-                : "polish",
-            )
-          : [{ text: draft(segment), kind: "unchanged" as const }],
-      );
-      download(
-        createEditableRtf(
+    try {
+      if (format === "txt")
+        download(
+          finalText,
+          `${filename}-当前文稿.txt`,
+          "text/plain;charset=utf-8",
+        );
+      else {
+        const { createLiteratureDocx } = await import("../lib/literatureDocx");
+        const content = await createLiteratureDocx(
           title,
-          paragraphs,
+          segments.map(draft),
           finalReferences,
-          format === "marked",
-        ),
-        `${filename}-${format === "marked" ? "修订标注" : "当前文稿"}.rtf`,
-        "application/rtf",
+        );
+        download(content, `${filename}-当前文稿.docx`);
+      }
+      setShowExport(false);
+      setNotice(
+        "已导出修改后的正文和对应文献，包含已应用建议及手动编辑，不含修订颜色或删除线。",
       );
+    } catch {
+      setNotice("文稿导出失败，请重试，或选择纯文本 TXT 导出。");
+    } finally {
+      setExporting(false);
     }
-    setShowExport(false);
-    setNotice(
-      "已导出当前文稿，包含已应用和手动编辑的内容。未应用建议不会写入正文。",
-    );
   }
   useLayoutEffect(() => {
     if (!navigationRequest) return;
@@ -608,17 +613,20 @@ export default function LiteratureStudio({
           ))}
         </div>
         <div className="le-header-actions">
-          <button className="le-button" onClick={() => onNew(currentCase.kind)}>
-            新建文献支持
-          </button>
           <div className="le-export-wrap" ref={exportMenu}>
             <button
               className="le-button le-primary"
               onClick={() => setShowExport(!showExport)}
               aria-expanded={showExport}
+              disabled={exporting}
+              aria-busy={exporting}
             >
-              <ArrowDownToLine size={14} />
-              {selectedImage ? "导出本图" : "导出文稿"}
+              {exporting ? (
+                <LoaderCircle size={14} className="le-export-spinner" />
+              ) : (
+                <ArrowDownToLine size={14} />
+              )}
+              {exporting ? "正在导出" : "导出文稿"}
               <ChevronDown size={13} />
             </button>
             {showExport && (
@@ -626,34 +634,24 @@ export default function LiteratureStudio({
                 <strong>
                   {selectedImage ? "导出当前图片的文稿" : "导出当前已编辑文稿"}
                 </strong>
-                <button onClick={() => exportDocument("rtf")}>
+                <button
+                  disabled={exporting}
+                  onClick={() => void exportDocument("docx")}
+                >
                   <FileText size={15} />
                   <span>
-                    Word 可编辑文稿<small>RTF 格式 · Word / WPS 可打开</small>
+                    Word 文稿<small>DOCX · 修改后的正文与参考文献</small>
                   </span>
                 </button>
-                <button onClick={() => exportDocument("txt")}>
+                <button
+                  disabled={exporting}
+                  onClick={() => void exportDocument("txt")}
+                >
                   <FileText size={15} />
                   <span>
-                    纯文本 TXT<small>仅正文与选定的引用</small>
+                    纯文本 TXT<small>修改后的正文与参考文献</small>
                   </span>
                 </button>
-                <button onClick={() => exportDocument("marked")}>
-                  <Pencil size={15} />
-                  <span>
-                    带颜色的修订标注<small>保留已应用修改与删除线 · RTF</small>
-                  </span>
-                </button>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={includeReferences}
-                    onChange={(event) =>
-                      setIncludeReferences(event.target.checked)
-                    }
-                  />
-                  包含正文引用的参考文献
-                </label>
               </div>
             )}
           </div>
@@ -912,7 +910,7 @@ export default function LiteratureStudio({
                             <MarkedText
                               references={referencesByNumber}
                               runs={revisionRuns(
-                                segment.original,
+                                normalizeInlineCitations(segment.original),
                                 displayed,
                                 manual ? "polish" : revisionKind(segment),
                               )}
@@ -1081,7 +1079,11 @@ export default function LiteratureStudio({
                         </strong>
                         <p>
                           <CitedText
-                            text={active.revised}
+                            text={
+                              canApply(active)
+                                ? proposed(active)
+                                : active.revised
+                            }
                             references={referencesByNumber}
                           />
                         </p>

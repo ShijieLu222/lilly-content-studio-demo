@@ -743,9 +743,27 @@
   text-decoration-color: #c7a4b7;
   text-underline-offset: 3px;
 }
+.le-citation-marker {
+  position: relative;
+  top: -0.45em;
+  margin-left: 1px;
+  font-size: 0.68em;
+  line-height: 0;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
 .le-inline-citation {
-  padding: 2px 3px;
+  padding: 0 1px;
   font-weight: 600;
+  text-underline-offset: 2px;
+}
+.le-export-spinner {
+  animation: le-export-spin 0.9s linear infinite;
+}
+@keyframes le-export-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .evidence-reference h4 svg,
 .le-document-references svg {

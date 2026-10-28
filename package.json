@@ -4,15 +4,24 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "prepare:ocr": "node scripts/prepare-ocr-assets.mjs",
+    "predev": "npm run prepare:ocr",
     "dev": "vite --host 127.0.0.1",
+    "prebuild": "npm run prepare:ocr",
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "verify:literature": "node scripts/verify-literature.mjs"
+    "verify:literature": "node scripts/verify-literature.mjs",
+    "verify:literature-editor": "node scripts/verify-literature-editor.mjs"
   },
   "dependencies": {
+    "@tesseract.js-data/chi_sim": "1.0.0",
+    "@tesseract.js-data/eng": "1.0.0",
+    "docx": "9.5.1",
     "lucide-react": "^0.468.0",
+    "mammoth": "^1.13.0",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",
