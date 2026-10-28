@@ -5013,3 +5013,142 @@ p {
     gap: 6px;
   }
 }
+
+/* The editing workspaces use the whole viewport, without the utility masthead. */
+.new-project .new-project-label {
+  margin-left: 0;
+  color: inherit;
+  font-size: inherit;
+}
+.focused-workspace {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.focused-workspace > .sidebar {
+  width: 208px;
+  padding: 22px 12px 0;
+}
+.focused-workspace > .sidebar .sidebar-brand {
+  margin-bottom: 25px;
+}
+.focused-workspace > .sidebar nav > button {
+  gap: 9px;
+  padding: 11px 10px;
+}
+.focused-workspace > .sidebar .nav-new {
+  display: none;
+}
+.focused-workspace > .main {
+  margin-left: 208px;
+  width: calc(100% - 208px);
+  height: 100dvh;
+  min-width: 0;
+  overflow: hidden;
+  background: #f8f8fa;
+}
+.focused-workspace.sidebar-collapsed > .sidebar {
+  display: flex;
+  width: 60px;
+  padding: 19px 8px 0;
+}
+.focused-workspace.sidebar-collapsed > .main {
+  margin-left: 60px;
+  width: calc(100% - 60px);
+}
+.focused-workspace.sidebar-collapsed .sidebar-brand {
+  flex-direction: column;
+  gap: 20px;
+  padding: 0;
+  margin-bottom: 17px;
+}
+.focused-workspace.sidebar-collapsed .sidebar-brand .brand-official {
+  padding-left: 0;
+}
+.focused-workspace.sidebar-collapsed .brand-official img {
+  width: 38px;
+}
+.focused-workspace.sidebar-collapsed .sidebar-brand > .icon-button {
+  display: inline-flex;
+  width: 34px;
+}
+.focused-workspace.sidebar-collapsed .nav-label,
+.focused-workspace.sidebar-collapsed .history-list,
+.focused-workspace.sidebar-collapsed .sidebar-divider,
+.focused-workspace.sidebar-collapsed .sidebar-bottom,
+.focused-workspace.sidebar-collapsed .new-project > span {
+  display: none;
+}
+.focused-workspace.sidebar-collapsed .new-project {
+  display: flex;
+  padding: 0;
+  height: 38px;
+  width: 42px;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+.focused-workspace.sidebar-collapsed .sidebar nav > button {
+  font-size: 0;
+  padding: 0;
+  width: 42px;
+  height: 42px;
+  justify-content: center;
+}
+.focused-workspace.sidebar-collapsed .sidebar nav {
+  gap: 8px;
+}
+@media (max-width: 1000px) {
+  .focused-workspace > .sidebar {
+    width: 60px;
+    padding: 20px 8px 0;
+  }
+  .focused-workspace > .main {
+    margin-left: 60px;
+    width: calc(100% - 60px);
+  }
+  .focused-workspace .sidebar-brand {
+    padding: 0;
+    justify-content: center;
+  }
+  .focused-workspace .sidebar-brand .brand-official {
+    padding: 0;
+  }
+  .focused-workspace .brand-official img {
+    width: 38px;
+  }
+  .focused-workspace .sidebar-brand > .icon-button,
+  .focused-workspace .nav-label,
+  .focused-workspace .history-list,
+  .focused-workspace .sidebar-divider,
+  .focused-workspace .sidebar-bottom,
+  .focused-workspace .new-project > span {
+    display: none;
+  }
+  .focused-workspace .new-project {
+    display: flex;
+    padding: 0;
+    width: 42px;
+    height: 38px;
+    justify-content: center;
+    margin-bottom: 18px;
+  }
+  .focused-workspace > .sidebar nav > button {
+    font-size: 0;
+    width: 42px;
+    height: 42px;
+    padding: 0;
+    justify-content: center;
+  }
+  .focused-workspace .sidebar nav {
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focused-workspace *,
+  .focused-workspace *::before,
+  .focused-workspace *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

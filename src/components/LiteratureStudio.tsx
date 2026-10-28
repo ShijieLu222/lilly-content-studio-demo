@@ -1,26 +1,29 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ArrowDownToLine,
   ArrowRight,
   BookOpen,
   Check,
   CheckCheck,
+  ChevronDown,
+  ChevronLeft,
   ChevronRight,
-  CircleAlert,
   Clock3,
   Copy,
   ExternalLink,
   FileSearch,
   FileText,
-  GitBranch,
   ImagePlus,
-  Info,
-  ListChecks,
-  LoaderCircle,
-  LockKeyhole,
-  Quote,
+  List,
+  Pencil,
   RotateCcw,
-  Search,
+  ShieldCheck,
   Sparkles,
   X,
 } from "lucide-react";
@@ -28,41 +31,118 @@ import {
   literatureCases,
   type EvidenceReference,
   type EvidenceLink,
-  type EvidenceStatus,
   type LiteratureCase,
   type LiteratureSegment,
 } from "../literatureData";
 import {
-  LITERATURE_STORE,
+  caseInput,
   createLiteratureSession,
-  restoreLiteratureSession,
-  transitionLiterature,
   getLiteratureSegments,
   isPresetInput,
-  createLiteratureReport,
-  literatureReportMarkdown,
-  literatureSteps,
   evidenceStatusLabels,
-  validateLiteratureInput,
-  type LiteratureAction,
-  type LiteratureSession,
 } from "../lib/literatureWorkflow";
+import {
+  createEditableRtf,
+  revisionKind,
+  revisionRuns,
+  type RevisionRun,
+} from "../lib/literatureEditor";
+import {
+  referenceDestination,
+  referenceDoiUrl,
+  referencePmidUrl,
+} from "../lib/literatureLinks";
 import "./LiteratureStudio.css";
 
-type ResultView = "comparison" | "manuscript" | "references" | "process";
-const stepIcons = [
-  FileText,
-  ListChecks,
-  Search,
-  Sparkles,
-  CheckCheck,
-  BookOpen,
-];
-const safeHref = (url?: string) =>
-  url && /^https?:\/\//i.test(url) ? url : undefined;
-const citation = (reference: EvidenceReference) =>
-  `${reference.authors}. ${reference.title}. ${reference.publication}${reference.doi ? ` DOI: ${reference.doi}` : ""}${reference.url ? ` ${reference.url}` : ""}`;
-
+type RevisionSnapshot = {
+  drafts: Record<string, string>;
+  ignored: string[];
+};
+type EditorDocument = {
+  input: string;
+  drafts: Record<string, string>;
+  ignored: string[];
+  imageName: string;
+  resetSnapshot?: RevisionSnapshot;
+};
+type EditorStore = {
+  caseId: string;
+  documents: Record<string, EditorDocument>;
+};
+const STORE = "lilly-literature-editor-v1";
+const initialDocument = (item: LiteratureCase): EditorDocument => ({
+  input: caseInput(item),
+  drafts: {},
+  ignored: [],
+  imageName: "",
+});
+function restoreEditor(item: LiteratureCase, storageKey: string): EditorStore {
+  const fallback = { caseId: item.id, documents: {} };
+  try {
+    const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
+    if (
+      !stored ||
+      stored.caseId !== item.id ||
+      !stored.documents ||
+      typeof stored.documents !== "object"
+    )
+      return fallback;
+    const documents: Record<string, EditorDocument> = {};
+    for (const current of [item]) {
+      const doc = stored.documents[current.id];
+      if (
+        !doc ||
+        typeof doc.input !== "string" ||
+        doc.input.length > 40000 ||
+        !doc.drafts ||
+        typeof doc.drafts !== "object" ||
+        !Array.isArray(doc.ignored)
+      )
+        continue;
+      const drafts: Record<string, string> = {};
+      for (const [key, value] of Object.entries(doc.drafts))
+        if (typeof value === "string" && value.length <= 40000)
+          drafts[key] = value;
+      const ignored = doc.ignored.filter(
+        (id: unknown) => typeof id === "string",
+      );
+      let resetSnapshot: RevisionSnapshot | undefined;
+      // An undo snapshot belongs to the unchanged document immediately after reset.
+      if (
+        !Object.keys(drafts).length &&
+        !ignored.length &&
+        doc.resetSnapshot &&
+        typeof doc.resetSnapshot.drafts === "object" &&
+        doc.resetSnapshot.drafts &&
+        !Array.isArray(doc.resetSnapshot.drafts) &&
+        Array.isArray(doc.resetSnapshot.ignored)
+      ) {
+        resetSnapshot = {
+          drafts: Object.fromEntries(
+            Object.entries(doc.resetSnapshot.drafts).filter(
+              ([, value]) => typeof value === "string" && value.length <= 40000,
+            ),
+          ) as Record<string, string>,
+          ignored: doc.resetSnapshot.ignored.filter(
+            (id: unknown) => typeof id === "string",
+          ),
+        };
+      }
+      documents[item.id] = {
+        input: doc.input,
+        drafts,
+        ignored,
+        imageName: typeof doc.imageName === "string" ? doc.imageName : "",
+        resetSnapshot,
+      };
+    }
+    return { caseId: stored.caseId, documents };
+  } catch {
+    return fallback;
+  }
+}
+const citation = (ref: EvidenceReference) =>
+  `${ref.authors}. ${ref.title}. ${ref.publication}${ref.doi ? ` DOI: ${ref.doi}` : ""} ${referenceDestination(ref).isSearch ? "检索入口（原文待定位）：" : ""}${referenceDestination(ref).url}`;
 function download(content: string, name: string, type: string) {
   const url = URL.createObjectURL(new Blob([content], { type }));
   const link = document.createElement("a");
@@ -71,15 +151,1135 @@ function download(content: string, name: string, type: string) {
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
-
-function Status({ value }: { value: EvidenceStatus }) {
+function ReferenceLink({
+  reference,
+  children,
+  className,
+}: {
+  reference: EvidenceReference;
+  children: ReactNode;
+  className?: string;
+}) {
+  const destination = referenceDestination(reference);
   return (
-    <span className={`evidence-status evidence-status-${value}`}>
-      {evidenceStatusLabels[value]}
-    </span>
+    <a
+      className={className}
+      href={destination.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`${destination.label}：${reference.title}（新标签页打开）`}
+      aria-label={`${destination.label}：${reference.title}（新标签页打开）`}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {children}
+    </a>
+  );
+}
+function CitedText({
+  text,
+  references,
+}: {
+  text: string;
+  references: Map<string, EvidenceReference>;
+}) {
+  return text.split(/(\[\d+(?:[,，\s]+\d+)*\])/g).map((part, index) =>
+    /^\[\d+(?:[,，\s]+\d+)*\]$/.test(part) ? (
+      <span key={index}>
+        [
+        {part
+          .slice(1, -1)
+          .split(/(\d+)/g)
+          .map((token, tokenIndex) => {
+            const reference = references.get(token);
+            return reference ? (
+              <ReferenceLink
+                key={tokenIndex}
+                reference={reference}
+                className="le-inline-citation"
+              >
+                {token}
+              </ReferenceLink>
+            ) : (
+              token
+            );
+          })}
+        ]
+      </span>
+    ) : (
+      part
+    ),
+  );
+}
+function MarkedText({
+  runs,
+  references,
+}: {
+  runs: RevisionRun[];
+  references: Map<string, EvidenceReference>;
+}) {
+  return (
+    <>
+      {runs.map((run, index) =>
+        run.kind === "deletion" ? (
+          <del key={index} className="le-mark le-mark-deletion">
+            <CitedText text={run.text} references={references} />
+          </del>
+        ) : (
+          <span
+            key={index}
+            className={
+              run.kind === "unchanged"
+                ? undefined
+                : `le-mark le-mark-${run.kind}`
+            }
+          >
+            <CitedText text={run.text} references={references} />
+          </span>
+        ),
+      )}
+    </>
   );
 }
 
+export default function LiteratureStudio({
+  item,
+  runId,
+  isExample,
+  onNew,
+}: {
+  item: LiteratureCase;
+  runId: string;
+  isExample: boolean;
+  onNew: (kind: "script" | "h5") => void;
+}) {
+  const storageKey = `${STORE}:${runId}`;
+  const [store, setStore] = useState<EditorStore>(() =>
+    restoreEditor(item, storageKey),
+  );
+  const [selected, setSelected] = useState(0);
+  const [view, setView] = useState<"marked" | "final">("marked");
+  const [sideView, setSideView] = useState<"suggestions" | "references">(
+    "suggestions",
+  );
+  const [editing, setEditing] = useState(false);
+  const [showOutline, setShowOutline] = useState(false);
+  const [navigationRequest, setNavigationRequest] = useState<{
+    id: string;
+    sequence: number;
+  } | null>(null);
+  const [showExport, setShowExport] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [storageFailed, setStorageFailed] = useState(false);
+  const [includeReferences, setIncludeReferences] = useState(true);
+  const exportMenu = useRef<HTMLDivElement>(null);
+  const documentScroll = useRef<HTMLDivElement>(null);
+  const reviewScroll = useRef<HTMLDivElement>(null);
+  const paragraphRefs = useRef<Record<string, HTMLElement | null>>({});
+  const currentCase = item;
+  const [selectedImageId, setSelectedImageId] = useState(
+    item.images?.[0]?.id || "",
+  );
+  const document =
+    store.documents[currentCase.id] || initialDocument(currentCase);
+  const session = {
+    ...createLiteratureSession(currentCase),
+    input: document.input,
+    imageName: document.imageName,
+  };
+  const preset = isExample && isPresetInput(session, currentCase);
+  const allSegments =
+    document.input === caseInput(currentCase)
+      ? currentCase.segments
+      : getLiteratureSegments(session, currentCase);
+  const selectedImage = currentCase.images?.find(
+    (image) => image.id === selectedImageId,
+  );
+  const segments =
+    currentCase.kind === "h5" && selectedImage
+      ? allSegments.filter((segment) => segment.imageId === selectedImage.id)
+      : allSegments;
+  const active = segments[selected] || segments[0];
+  const references = preset ? currentCase.references : [];
+  const imageReferenceIds = new Set(
+    segments.flatMap((segment) =>
+      segment.evidence.map((link) => link.referenceId),
+    ),
+  );
+  const displayedReferences = selectedImage
+    ? references.filter((reference) => imageReferenceIds.has(reference.id))
+    : references;
+  const refNumber = (id: string) => {
+    const index = references.findIndex((ref) => ref.id === id);
+    return references[index]?.label && /^\d+$/.test(references[index].label!)
+      ? references[index].label!
+      : String(index + 1);
+  };
+  const referencesByNumber = new Map(
+    references.map((ref) => [refNumber(ref.id), ref]),
+  );
+  const canApply = (segment: LiteratureSegment) =>
+    preset &&
+    segment.original !== segment.revised &&
+    (currentCase.kind !== "h5" || segment.status === "supported");
+  const proposed = (segment: LiteratureSegment) => {
+    if (!canApply(segment)) return segment.original;
+    const numbers = [
+      ...new Set(segment.evidence.map((link) => refNumber(link.referenceId))),
+    ];
+    return (
+      segment.revised +
+      (currentCase.kind === "script" && numbers.length
+        ? ` [${numbers.join(",")}]`
+        : "")
+    );
+  };
+  const draft = (segment: LiteratureSegment) =>
+    document.drafts[segment.id] ?? segment.original;
+  const pending = segments.filter(
+    (segment) =>
+      canApply(segment) &&
+      document.drafts[segment.id] === undefined &&
+      !document.ignored.includes(segment.id),
+  );
+  const changed = segments.filter(
+    (segment) => draft(segment) !== segment.original,
+  ).length;
+  const activeRefs = active
+    ? references.filter((ref) =>
+        active.evidence.some((link) => link.referenceId === ref.id),
+      )
+    : [];
+  const activeManuallyEdited =
+    !!active &&
+    document.drafts[active.id] !== undefined &&
+    draft(active) !== proposed(active);
+  const title = selectedImage
+    ? `${currentCase.title} · ${selectedImage.label}`
+    : currentCase.title;
+  const finalBody = segments.map(draft).join("\n\n");
+  const citedNumbers = new Set(
+    [...finalBody.matchAll(/\[([\d,，\s]+)\]/g)].flatMap((match) =>
+      match[1].split(/[,，\s]+/),
+    ),
+  );
+  const finalReferences = includeReferences
+    ? references
+        .filter((ref) => citedNumbers.has(refNumber(ref.id)))
+        .map((ref) => ({
+          reference: ref,
+          text: `[${refNumber(ref.id)}] ${citation(ref)}`,
+          url: referenceDestination(ref).url,
+        }))
+    : [];
+  const finalText = `${title}\n\n${finalBody}${finalReferences.length ? `\n\n参考文献\n${finalReferences.map((ref) => ref.text).join("\n\n")}` : ""}`;
+
+  function updateDocument(
+    update: (doc: EditorDocument) => EditorDocument,
+    keepResetSnapshot = false,
+  ) {
+    setStore((value) => {
+      const current =
+        value.documents[currentCase.id] || initialDocument(currentCase);
+      // A new document edit ends the previous reset's undo opportunity.
+      const editable = keepResetSnapshot
+        ? current
+        : { ...current, resetSnapshot: undefined };
+      return {
+        ...value,
+        documents: { ...value.documents, [currentCase.id]: update(editable) },
+      };
+    });
+  }
+  function returnToDemoStart() {
+    setSelected(0);
+    setEditing(false);
+    setView("marked");
+    setSideView("suggestions");
+    setShowOutline(false);
+    setShowExport(false);
+    setNavigationRequest(null);
+    requestAnimationFrame(() => {
+      documentScroll.current?.scrollTo({ top: 0, behavior: "instant" });
+      reviewScroll.current?.scrollTo({ top: 0, behavior: "instant" });
+    });
+  }
+  function resetDemo() {
+    if (!Object.keys(document.drafts).length && !document.ignored.length)
+      return;
+    updateDocument((doc) => ({
+      ...doc,
+      drafts: {},
+      ignored: [],
+      resetSnapshot: { drafts: { ...doc.drafts }, ignored: [...doc.ignored] },
+    }));
+    returnToDemoStart();
+    setNotice("已回到应用前，可重新演示。误点可在右下角撤销重置。");
+  }
+  function undoDemoReset() {
+    if (!document.resetSnapshot) return;
+    updateDocument(
+      (doc) =>
+        doc.resetSnapshot
+          ? {
+              ...doc,
+              drafts: { ...doc.resetSnapshot.drafts },
+              ignored: [...doc.resetSnapshot.ignored],
+              resetSnapshot: undefined,
+            }
+          : doc,
+      true,
+    );
+    returnToDemoStart();
+    setNotice("已恢复重置前的文稿，包括手动修改。");
+  }
+  function selectImage(id: string) {
+    setSelectedImageId(id);
+    setSelected(0);
+    setEditing(false);
+    setShowOutline(false);
+    setNavigationRequest(null);
+  }
+  function selectParagraph(index: number) {
+    const segment = segments[index];
+    if (!segment) return;
+    setSelected(index);
+    setShowOutline(false);
+    setNavigationRequest((request) => ({
+      id: segment.id,
+      sequence: (request?.sequence ?? 0) + 1,
+    }));
+  }
+  function applySegment(segment: LiteratureSegment) {
+    updateDocument((doc) => ({
+      ...doc,
+      drafts: { ...doc.drafts, [segment.id]: proposed(segment) },
+      ignored: doc.ignored.filter((id) => id !== segment.id),
+    }));
+    setNotice(`第 ${segment.sourceNumber} 段建议已应用，仍可继续编辑。`);
+  }
+  function applyAll() {
+    if (!pending.length) return;
+    updateDocument((doc) => ({
+      ...doc,
+      drafts: {
+        ...doc.drafts,
+        ...Object.fromEntries(
+          pending.map((segment) => [segment.id, proposed(segment)]),
+        ),
+      },
+    }));
+    setNotice(`已应用 ${pending.length} 段建议。你已手动修改的段落保持原样。`);
+  }
+  function editParagraph(segment: LiteratureSegment, text: string) {
+    updateDocument((doc) => ({
+      ...doc,
+      drafts: { ...doc.drafts, [segment.id]: text },
+    }));
+  }
+  function resetParagraph(segment: LiteratureSegment) {
+    updateDocument((doc) => {
+      const drafts = { ...doc.drafts };
+      delete drafts[segment.id];
+      return {
+        ...doc,
+        drafts,
+        ignored: doc.ignored.filter((id) => id !== segment.id),
+      };
+    });
+    setNotice("本段已恢复原文，建议可重新应用。");
+  }
+  async function copy(text: string, label: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice(`${label}已复制。`);
+    } catch {
+      setNotice("浏览器未允许复制，请使用导出按钮保存文稿。");
+    }
+  }
+  function exportDocument(format: "txt" | "rtf" | "marked") {
+    const filename = title.replace(/[\\/:*?"<>|]/g, "-");
+    if (format === "txt")
+      download(
+        finalText,
+        `${filename}-当前文稿.txt`,
+        "text/plain;charset=utf-8",
+      );
+    else {
+      const paragraphs = segments.map((segment) =>
+        format === "marked"
+          ? revisionRuns(
+              segment.original,
+              draft(segment),
+              draft(segment) === proposed(segment)
+                ? revisionKind(segment)
+                : "polish",
+            )
+          : [{ text: draft(segment), kind: "unchanged" as const }],
+      );
+      download(
+        createEditableRtf(
+          title,
+          paragraphs,
+          finalReferences,
+          format === "marked",
+        ),
+        `${filename}-${format === "marked" ? "修订标注" : "当前文稿"}.rtf`,
+        "application/rtf",
+      );
+    }
+    setShowExport(false);
+    setNotice(
+      "已导出当前文稿，包含已应用和手动编辑的内容。未应用建议不会写入正文。",
+    );
+  }
+  useLayoutEffect(() => {
+    if (!navigationRequest) return;
+    const viewport = documentScroll.current;
+    const target = paragraphRefs.current[navigationRequest.id];
+    if (!viewport || !target) return;
+    // Measure after React commits both the new selection and the closed outline.
+    // Only the document viewport moves; the page and neighboring panel stay put.
+    const top =
+      viewport.scrollTop +
+      target.getBoundingClientRect().top -
+      viewport.getBoundingClientRect().top -
+      14;
+    viewport.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  }, [navigationRequest]);
+  useLayoutEffect(() => {
+    reviewScroll.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [selected, currentCase.id, selectedImageId]);
+  useLayoutEffect(() => {
+    documentScroll.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [currentCase.id, document.input, selectedImageId]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(store));
+      setStorageFailed(false);
+    } catch {
+      setStorageFailed(true);
+      setNotice("浏览器无法保存当前编辑，请及时导出文稿。");
+    }
+  }, [store, storageKey]);
+  useEffect(() => {
+    if (!showExport) return;
+    function outside(event: PointerEvent) {
+      if (!exportMenu.current?.contains(event.target as Node))
+        setShowExport(false);
+    }
+    function close(event: KeyboardEvent) {
+      if (event.key === "Escape") setShowExport(false);
+    }
+    window.addEventListener("pointerdown", outside);
+    window.addEventListener("keydown", close);
+    return () => {
+      window.removeEventListener("pointerdown", outside);
+      window.removeEventListener("keydown", close);
+    };
+  }, [showExport]);
+
+  return (
+    <div className="literature-editor">
+      <header className="le-header">
+        <div className="le-heading">
+          <span className="le-heading-icon">
+            <FileSearch size={20} />
+          </span>
+          <div>
+            <h1>文献支持</h1>
+            <p>上传内容 › 分析与整理 › 查看结果</p>
+          </div>
+        </div>
+        <div className="le-case-tabs" role="tablist" aria-label="文献任务类型">
+          {literatureCases.map((item) => (
+            <button
+              key={item.id}
+              role="tab"
+              aria-selected={item.kind === currentCase.kind}
+              onClick={() => onNew(item.kind)}
+            >
+              {item.kind === "script" ? (
+                <FileText size={14} />
+              ) : (
+                <ImagePlus size={14} />
+              )}
+              {item.kind === "script" ? "达人脚本优化" : "H5 文献支持"}
+            </button>
+          ))}
+        </div>
+        <div className="le-header-actions">
+          <button className="le-button" onClick={() => onNew(currentCase.kind)}>
+            新建文献支持
+          </button>
+          <div className="le-export-wrap" ref={exportMenu}>
+            <button
+              className="le-button le-primary"
+              onClick={() => setShowExport(!showExport)}
+              aria-expanded={showExport}
+            >
+              <ArrowDownToLine size={14} />
+              {selectedImage ? "导出本图" : "导出文稿"}
+              <ChevronDown size={13} />
+            </button>
+            {showExport && (
+              <div className="le-export-menu">
+                <strong>
+                  {selectedImage ? "导出当前图片的文稿" : "导出当前已编辑文稿"}
+                </strong>
+                <button onClick={() => exportDocument("rtf")}>
+                  <FileText size={15} />
+                  <span>
+                    Word 可编辑文稿<small>RTF 格式 · Word / WPS 可打开</small>
+                  </span>
+                </button>
+                <button onClick={() => exportDocument("txt")}>
+                  <FileText size={15} />
+                  <span>
+                    纯文本 TXT<small>仅正文与选定的引用</small>
+                  </span>
+                </button>
+                <button onClick={() => exportDocument("marked")}>
+                  <Pencil size={15} />
+                  <span>
+                    带颜色的修订标注<small>保留已应用修改与删除线 · RTF</small>
+                  </span>
+                </button>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={includeReferences}
+                    onChange={(event) =>
+                      setIncludeReferences(event.target.checked)
+                    }
+                  />
+                  包含正文引用的参考文献
+                </label>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+      <div className="le-workspace">
+        <section className="le-document-panel" aria-label="全文文稿">
+          <div className="le-document-toolbar">
+            <div className="le-view-tabs" role="tablist" aria-label="文稿视图">
+              <button
+                role="tab"
+                aria-selected={view === "marked" && !editing}
+                onClick={() => {
+                  setView("marked");
+                  setEditing(false);
+                }}
+              >
+                修订预览
+              </button>
+              <button
+                role="tab"
+                aria-selected={view === "final" && !editing}
+                onClick={() => {
+                  setView("final");
+                  setEditing(false);
+                }}
+              >
+                当前文稿
+              </button>
+            </div>
+            <div className="le-doc-actions">
+              <button
+                aria-pressed={showOutline}
+                onClick={() => setShowOutline(!showOutline)}
+              >
+                <List size={14} />
+                <span>段落导航</span>
+              </button>
+              <button
+                className={editing ? "active" : ""}
+                aria-pressed={editing}
+                onClick={() => {
+                  setEditing(!editing);
+                  setView("final");
+                }}
+              >
+                <Pencil size={14} />
+                {editing ? "完成编辑" : "编辑全文"}
+              </button>
+              <button
+                onClick={() => void copy(finalText, "当前文稿")}
+                aria-label="复制当前文稿"
+              >
+                <Copy size={14} />
+              </button>
+            </div>
+          </div>
+          <div className="le-legend">
+            <span>
+              <i className="deletion" />
+              删除
+            </span>
+            <span>
+              <i className="compliance" />
+              合规调整
+            </span>
+            <span>
+              <i className="addition" />
+              补充
+            </span>
+            <span>
+              <i className="polish" />
+              润色 / 手动修改
+            </span>
+            <small>
+              {editing
+                ? "直接编辑下方文字，修改自动保存"
+                : view === "marked"
+                  ? "未应用的内容仅作建议预览"
+                  : "这里是实际导出的文稿内容"}
+            </small>
+          </div>
+          <div className="le-document-body">
+            {showOutline && (
+              <nav className="le-outline" aria-label="段落导航">
+                <div>
+                  <strong>段落导航</strong>
+                  <button
+                    aria-label="关闭段落导航"
+                    onClick={() => setShowOutline(false)}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                {segments.map((segment, index) => (
+                  <button
+                    key={segment.id}
+                    aria-current={index === selected ? "true" : undefined}
+                    onClick={() => selectParagraph(index)}
+                  >
+                    <span>{segment.sourceNumber.padStart(2, "0")}</span>
+                    {segment.title}
+                  </button>
+                ))}
+              </nav>
+            )}
+            <div className="le-document-scroll" ref={documentScroll}>
+              <div className="le-document-title">
+                <div>
+                  <span className="le-eyebrow">
+                    {preset ? "AI 辅助审阅 · 预置案例" : "自定义文稿"}
+                  </span>
+                  <h2>{currentCase.title}</h2>
+                  <p>
+                    {segments.length} 段正文<span>·</span>
+                    {changed} 段已修改<span>·</span>
+                    {finalBody.length} 字
+                  </p>
+                </div>
+              </div>
+              {currentCase.kind === "h5" && currentCase.images && (
+                <>
+                  <div className="le-image-selection-heading">
+                    <strong>选择图片，查看对应内容</strong>
+                    <span>{currentCase.images.length} 张图片</span>
+                  </div>
+                  <div
+                    className="le-source-images"
+                    role="tablist"
+                    aria-label="H5 图片选择"
+                  >
+                    {currentCase.images.map((img, index) => (
+                      <button
+                        key={img.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={img.id === selectedImageId}
+                        aria-controls="le-image-content"
+                        onClick={() => selectImage(img.id)}
+                      >
+                        <img src={img.src} alt={img.label} />
+                        <span>
+                          <b>图 {index + 1}</b>
+                          {img.label}
+                        </span>
+                        <small>
+                          {
+                            allSegments.filter(
+                              (segment) => segment.imageId === img.id,
+                            ).length
+                          }{" "}
+                          段内容
+                        </small>
+                      </button>
+                    ))}
+                  </div>
+                  {selectedImage && (
+                    <div
+                      className="le-selected-image-label"
+                      id="le-image-content"
+                    >
+                      <div>
+                        <strong>{selectedImage.label}</strong>
+                        <span>以下仅显示这张图片的文字与建议</span>
+                      </div>
+                      <a
+                        href={selectedImage.src}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        查看完整原图 <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  )}
+                </>
+              )}
+              {!preset && (
+                <div className="le-custom-note">
+                  自定义内容未进行自动改写或实时文献检索。你可以直接编辑、添加引用并导出。
+                </div>
+              )}
+              {segments.map((segment, index) => {
+                const manual =
+                  document.drafts[segment.id] !== undefined &&
+                  draft(segment) !== proposed(segment);
+                const applied =
+                  document.drafts[segment.id] !== undefined &&
+                  draft(segment) === proposed(segment) &&
+                  canApply(segment);
+                const ignored = document.ignored.includes(segment.id);
+                const showingSuggestion =
+                  view === "marked" && !manual && !ignored && canApply(segment);
+                const displayed = showingSuggestion
+                  ? proposed(segment)
+                  : draft(segment);
+                return (
+                  <article
+                    key={segment.id}
+                    ref={(node) => {
+                      paragraphRefs.current[segment.id] = node;
+                    }}
+                    className={`le-paragraph${index === selected ? " selected" : ""}`}
+                    onClick={() => setSelected(index)}
+                  >
+                    <button
+                      className="le-paragraph-number"
+                      onClick={() => setSelected(index)}
+                      aria-label={`选择第 ${segment.sourceNumber} 段`}
+                    >
+                      {segment.sourceNumber.padStart(2, "0")}
+                    </button>
+                    <div className="le-paragraph-content">
+                      <div className="le-paragraph-top">
+                        <h3>{segment.title}</h3>
+                        <span
+                          className={
+                            manual
+                              ? "le-status-manual"
+                              : applied
+                                ? "le-status-applied"
+                                : ""
+                          }
+                        >
+                          {manual ? (
+                            "已手动编辑"
+                          ) : applied ? (
+                            <>
+                              <Check size={11} />
+                              已应用
+                            </>
+                          ) : ignored ? (
+                            "保留原文"
+                          ) : canApply(segment) ? (
+                            "建议待应用"
+                          ) : (
+                            "待复核"
+                          )}
+                        </span>
+                      </div>
+                      {editing ? (
+                        <textarea
+                          aria-label={`编辑第 ${segment.sourceNumber} 段`}
+                          value={draft(segment)}
+                          rows={Math.max(
+                            3,
+                            Math.ceil(draft(segment).length / 42),
+                          )}
+                          onFocus={() => setSelected(index)}
+                          onChange={(event) =>
+                            editParagraph(segment, event.target.value)
+                          }
+                        />
+                      ) : (
+                        <p className="le-paragraph-text">
+                          {view === "marked" ? (
+                            <MarkedText
+                              references={referencesByNumber}
+                              runs={revisionRuns(
+                                segment.original,
+                                displayed,
+                                manual ? "polish" : revisionKind(segment),
+                              )}
+                            />
+                          ) : (
+                            <CitedText
+                              text={draft(segment)}
+                              references={referencesByNumber}
+                            />
+                          )}
+                        </p>
+                      )}
+                      {index === selected && !editing && (
+                        <div className="le-paragraph-bottom">
+                          <span
+                            className={`evidence-status evidence-status-${manual ? "pending" : segment.status}`}
+                          >
+                            {manual
+                              ? "编辑后待复核"
+                              : evidenceStatusLabels[segment.status]}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setEditing(true);
+                              setView("final");
+                            }}
+                          >
+                            编辑这一段 <Pencil size={11} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+              {view === "final" && finalReferences.length > 0 && (
+                <section className="le-document-references">
+                  <h3>参考文献</h3>
+                  {finalReferences.map((ref) => (
+                    <p key={ref.reference.id}>
+                      <ReferenceLink reference={ref.reference}>
+                        {ref.text} <ExternalLink size={11} />
+                      </ReferenceLink>
+                    </p>
+                  ))}
+                </section>
+              )}
+            </div>
+          </div>
+          <footer className="le-document-footer">
+            <span>
+              <CheckCheck size={13} />
+              {storageFailed
+                ? "当前修改尚未保存，请导出"
+                : "修改自动保存在此浏览器"}
+            </span>
+            <span>
+              {changed ? `${changed} 段已修改` : "原文已保留"} ·{" "}
+              {pending.length} 段建议待应用
+            </span>
+          </footer>
+        </section>
+        <aside className="le-review-panel" aria-label="修改建议与文献">
+          <div className="le-review-tabs" role="tablist" aria-label="审阅内容">
+            <button
+              role="tab"
+              aria-selected={sideView === "suggestions"}
+              onClick={() => setSideView("suggestions")}
+            >
+              <Sparkles size={15} />
+              修改建议
+            </button>
+            <button
+              role="tab"
+              aria-selected={sideView === "references"}
+              onClick={() => setSideView("references")}
+            >
+              <BookOpen size={15} />
+              参考文献<span>{displayedReferences.length}</span>
+            </button>
+          </div>
+          <div className="le-review-scroll" ref={reviewScroll}>
+            {sideView === "suggestions" ? (
+              <>
+                <div className="le-review-intro">
+                  <span className="le-eyebrow">
+                    {preset ? "AI REVIEW" : "CONTENT REVIEW"}
+                  </span>
+                  <h2>{preset ? "让修改清楚可见" : "继续核对这份内容"}</h2>
+                  <p>在全文中查看上下文，逐段确认表达。</p>
+                  <div className="le-review-order">
+                    <span>文案润色</span>
+                    <ArrowRight size={12} />
+                    <span>合规审核</span>
+                    <ArrowRight size={12} />
+                    <span>引用添加</span>
+                  </div>
+                </div>
+                <div className="le-apply-all">
+                  <div>
+                    <b>{pending.length}</b>
+                    <span>段建议待应用</span>
+                  </div>
+                  <button
+                    className="le-button le-primary"
+                    disabled={!pending.length}
+                    onClick={applyAll}
+                  >
+                    <CheckCheck size={14} />
+                    {selectedImage ? "应用本图建议" : "一键应用修改"}
+                  </button>
+                </div>
+                {active && (
+                  <>
+                    <div className="le-selected-heading">
+                      <span>
+                        当前段落 {String(selected + 1).padStart(2, "0")} /{" "}
+                        {segments.length}
+                      </span>
+                      <div>
+                        <button
+                          disabled={selected <= 0}
+                          onClick={() => selectParagraph(selected - 1)}
+                          aria-label="上一段"
+                        >
+                          <ChevronLeft size={15} />
+                        </button>
+                        <button
+                          disabled={selected >= segments.length - 1}
+                          onClick={() => selectParagraph(selected + 1)}
+                          aria-label="下一段"
+                        >
+                          <ChevronRight size={15} />
+                        </button>
+                      </div>
+                    </div>
+                    <h3 className="le-active-title">{active.title}</h3>
+                    <div className="le-suggestion-card">
+                      <div className="le-suggestion-label">
+                        <ShieldCheck size={14} />
+                        {!preset
+                          ? "内容待核查"
+                          : revisionKind(active) === "polish"
+                            ? "文案润色"
+                            : revisionKind(active) === "addition"
+                              ? "信息补充"
+                              : "合规措辞调整"}
+                        <span
+                          className={`evidence-status evidence-status-${document.drafts[active.id] !== undefined && draft(active) !== proposed(active) ? "pending" : active.status}`}
+                        >
+                          {document.drafts[active.id] !== undefined &&
+                          draft(active) !== proposed(active)
+                            ? "编辑后待复核"
+                            : evidenceStatusLabels[active.status]}
+                        </span>
+                      </div>
+                      <p>
+                        <CitedText
+                          text={active.reason}
+                          references={referencesByNumber}
+                        />
+                      </p>
+                      <div className="le-suggestion-copy">
+                        <strong>
+                          {canApply(active) ? "建议表达" : "复核建议"}
+                        </strong>
+                        <p>
+                          <CitedText
+                            text={active.revised}
+                            references={referencesByNumber}
+                          />
+                        </p>
+                      </div>
+                      {!canApply(active) && (
+                        <small className="le-review-note">
+                          此段保留原文，复核说明不会直接写入成稿。
+                        </small>
+                      )}
+                      <div className="le-suggestion-actions">
+                        {canApply(active) && (
+                          <button
+                            className="le-button le-primary"
+                            disabled={
+                              document.drafts[active.id] !== undefined ||
+                              document.ignored.includes(active.id)
+                            }
+                            onClick={() => applySegment(active)}
+                          >
+                            <Check size={13} />
+                            {document.drafts[active.id] !== undefined
+                              ? "已处理"
+                              : "应用本段"}
+                          </button>
+                        )}
+                        <button
+                          className="le-button"
+                          onClick={() => {
+                            updateDocument((doc) => ({
+                              ...doc,
+                              ignored: [
+                                ...new Set([...doc.ignored, active.id]),
+                              ],
+                            }));
+                            setNotice("已保留本段原文。其他段落仍可应用修改。");
+                          }}
+                          disabled={
+                            document.drafts[active.id] !== undefined ||
+                            document.ignored.includes(active.id)
+                          }
+                        >
+                          保留原文
+                        </button>
+                        {(document.drafts[active.id] !== undefined ||
+                          document.ignored.includes(active.id)) && (
+                          <button
+                            className="le-reset-paragraph"
+                            onClick={() => resetParagraph(active)}
+                          >
+                            <RotateCcw size={12} />
+                            恢复
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    {active.evidence.length > 0 && (
+                      <div className="le-linked-references">
+                        <div>
+                          <BookOpen size={14} />
+                          <strong>
+                            {activeManuallyEdited
+                              ? "原文参考文献"
+                              : "本段参考文献"}
+                          </strong>
+                          <span>{activeRefs.length} 篇</span>
+                        </div>
+                        {activeManuallyEdited && (
+                          <p className="le-review-note">
+                            以下来源对应原始文案，手动改写后的支持范围需重新核对。
+                          </p>
+                        )}
+                        {activeRefs.map((ref) => (
+                          <ReferenceLink key={ref.id} reference={ref}>
+                            <b>[{refNumber(ref.id)}]</b>
+                            <span>
+                              {ref.title}
+                              {referenceDestination(ref).isSearch && (
+                                <small>检索文献 · 原文待定位</small>
+                              )}
+                            </span>
+                            <ExternalLink size={13} />
+                          </ReferenceLink>
+                        ))}
+                      </div>
+                    )}
+                    {active.evidence.length > 0 && (
+                      <details className="le-boundary">
+                        <summary>查看证据支持范围</summary>
+                        {active.evidence.map((link, index) => (
+                          <div key={index}>
+                            <strong>
+                              [{refNumber(link.referenceId)}] {link.locator}
+                            </strong>
+                            <p>{link.support}</p>
+                            <p className="le-boundary-note">
+                              边界：{link.boundary}
+                            </p>
+                          </div>
+                        ))}
+                      </details>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="le-reference-heading">
+                  <h2>参考文献</h2>
+                  <p>
+                    {active
+                      ? `第 ${active.sourceNumber} 段关联 ${activeRefs.length} 篇`
+                      : "暂无关联文献"}
+                  </p>
+                  <button onClick={() => setSideView("suggestions")}>
+                    <ChevronLeft size={12} />
+                    返回修改建议
+                  </button>
+                </div>
+                {activeManuallyEdited && (
+                  <p className="le-custom-note">
+                    当前段落已手动修改。以下为原文关联来源，尚未重新核验编辑后的表达。
+                  </p>
+                )}
+                {!activeRefs.length && (
+                  <p className="le-empty-refs">
+                    本段暂无对应文献。
+                    {preset
+                      ? "可选择其他段落查看其引用。"
+                      : "自定义内容的引用需要人工补充核对。"}
+                  </p>
+                )}
+                {activeRefs.map((ref) => (
+                  <ReferenceCard
+                    key={ref.id}
+                    reference={ref}
+                    number={Number(refNumber(ref.id))}
+                    links={active.evidence.filter(
+                      (link) => link.referenceId === ref.id,
+                    )}
+                    onCopy={(text, label) => void copy(text, label)}
+                  />
+                ))}
+                <details className="le-all-references">
+                  <summary>
+                    {selectedImage ? "本图参考文献" : "全部参考文献"}（
+                    {displayedReferences.length}）
+                  </summary>
+                  {displayedReferences.map((ref) => (
+                    <ReferenceCard
+                      key={ref.id}
+                      reference={ref}
+                      number={Number(refNumber(ref.id))}
+                      onCopy={(text, label) => void copy(text, label)}
+                    />
+                  ))}
+                </details>
+              </>
+            )}
+          </div>
+          <footer className="le-review-footer">
+            <span>
+              {preset
+                ? "本地预置审阅结果 · 不代表医学审批通过"
+                : "自定义内容 · 证据待人工核查"}
+            </span>
+            <button
+              type="button"
+              className="le-demo-reset"
+              disabled={
+                !document.resetSnapshot &&
+                !Object.keys(document.drafts).length &&
+                !document.ignored.length
+              }
+              onClick={document.resetSnapshot ? undoDemoReset : resetDemo}
+              title={
+                document.resetSnapshot
+                  ? "恢复重置前的文稿，包括手动修改"
+                  : "重置当前文稿的应用与编辑，保留原文，回到建议待应用状态"
+              }
+            >
+              <RotateCcw size={11} />
+              {document.resetSnapshot ? "撤销重置" : "重置演示"}
+            </button>
+          </footer>
+        </aside>
+      </div>
+      {notice && (
+        <div className="le-notice" role="status">
+          <Check size={14} />
+          <span>{notice}</span>
+          <button onClick={() => setNotice("")} aria-label="关闭提示">
+            <X size={14} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 function ReferenceCard({
   reference,
   number,
@@ -91,10 +1291,9 @@ function ReferenceCard({
   links?: EvidenceLink[];
   onCopy: (text: string, label: string) => void;
 }) {
-  const url = safeHref(reference.url);
-  const doiUrl = reference.doi
-    ? `https://doi.org/${encodeURI(reference.doi)}`
-    : undefined;
+  const destination = referenceDestination(reference);
+  const doiUrl = referenceDoiUrl(reference);
+  const pmidUrl = referencePmidUrl(reference);
   const verificationLabel =
     reference.verificationLevel === "full-text"
       ? "全文段落已核对"
@@ -121,13 +1320,25 @@ function ReferenceCard({
           {reference.verified ? verificationLabel : "书目待核查"}
         </span>
       </div>
-      <h4>{reference.title}</h4>
+      <h4>
+        <ReferenceLink reference={reference}>
+          {reference.title} <ExternalLink size={12} />
+        </ReferenceLink>
+      </h4>
       <p className="evidence-ref-authors">{reference.authors}</p>
       <p className="evidence-ref-publication">{reference.publication}</p>
       {(reference.doi || reference.pmid) && (
         <div className="evidence-ref-id">
-          {reference.doi && <span>DOI · {reference.doi}</span>}
-          {reference.pmid && <span>PMID · {reference.pmid}</span>}
+          {doiUrl && (
+            <a href={doiUrl} target="_blank" rel="noopener noreferrer">
+              DOI · {reference.doi}
+            </a>
+          )}
+          {pmidUrl && (
+            <a href={pmidUrl} target="_blank" rel="noopener noreferrer">
+              PMID · {reference.pmid}
+            </a>
+          )}
         </div>
       )}
       <dl className="evidence-ref-evidence">
@@ -187,14 +1398,10 @@ function ReferenceCard({
         </p>
       ) : null}
       <div className="evidence-ref-actions">
-        {url ? (
-          <a href={url} target="_blank" rel="noreferrer">
-            <ExternalLink size={11} /> 来源原文
-          </a>
-        ) : (
-          <span>原文入口待核查</span>
-        )}
-        {doiUrl && doiUrl !== url && (
+        <ReferenceLink reference={reference}>
+          <ExternalLink size={11} /> {destination.label}
+        </ReferenceLink>
+        {doiUrl && doiUrl !== destination.url && (
           <a href={doiUrl} target="_blank" rel="noreferrer">
             <ExternalLink size={11} /> DOI 入口
           </a>
@@ -213,1266 +1420,5 @@ function ReferenceCard({
         </button>
       </div>
     </article>
-  );
-}
-
-function LockedResult({
-  session,
-  kind,
-}: {
-  session: LiteratureSession;
-  kind: LiteratureCase["kind"];
-}) {
-  const busy = session.stage === 2 || session.stage === 3;
-  const progress = new Set(session.completed).size;
-  return (
-    <section
-      className="evidence-result evidence-locked"
-      aria-label="文献报告尚未解锁"
-    >
-      <div className="evidence-locked-head">
-        <div>
-          <span className="evidence-eyebrow">YOUR EVIDENCE REPORT</span>
-          <h2>最终成果</h2>
-        </div>
-        <span className="evidence-lock-badge">
-          <LockKeyhole size={11} /> 尚未解锁
-        </span>
-      </div>
-      <div className="evidence-locked-content">
-        <div className="evidence-lock-art" aria-hidden="true">
-          {busy ? (
-            <LoaderCircle
-              size={31}
-              className="evidence-spin"
-              strokeWidth={1.3}
-            />
-          ) : (
-            <LockKeyhole size={31} strokeWidth={1.3} />
-          )}
-        </div>
-        <h3>
-          {busy
-            ? "正在整理本次报告"
-            : session.stage === 4
-              ? "完成流程后，查看完整报告"
-              : "先走完流程，再看见有依据的表达"}
-        </h3>
-        <p>
-          {busy
-            ? kind === "h5"
-              ? "逐段对照、审阅建议与来源记录将在全部流程完成后一起呈现。"
-              : "逐段对照、建议表达与来源记录将在全部流程完成后一起呈现。"
-            : session.stage === 4
-              ? kind === "h5"
-                ? "请在左侧确认交付范围。确认后解锁逐段结果、审阅建议与文献清单。"
-                : "请在左侧确认交付范围。确认后解锁逐段结果、完整建议稿与文献清单。"
-              : "从确认原文开始，核对主张与交付范围，让每一段内容有清楚的来处。"}
-        </p>
-        <div className="evidence-lock-progress">
-          <div>
-            <span>本轮流程</span>
-            <b>{progress} / 6 阶段</b>
-          </div>
-          <div
-            className="evidence-progress-track"
-            role="progressbar"
-            aria-label="文献报告解锁进度"
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={6}
-          >
-            <span style={{ width: `${(progress / 6) * 100}%` }} />
-          </div>
-          <p>
-            <Clock3 size={11} /> 当前：{literatureSteps[session.stage]?.title}
-          </p>
-        </div>
-        <div className="evidence-locked-footer">
-          重新演示或编辑原文后，成果会重新收起。
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function SourceSegmentButton({
-  segment,
-  selected,
-  finished,
-  onSelect,
-}: {
-  segment: LiteratureSegment;
-  selected: boolean;
-  finished: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="evidence-segment-button"
-      aria-pressed={selected}
-      onClick={onSelect}
-      aria-label={`选择第 ${segment.sourceNumber} 段：${segment.title}`}
-    >
-      <span className="evidence-segment-top">
-        <span className="evidence-segment-num">
-          {segment.sourceNumber.padStart(2, "0")}
-        </span>
-        <span className="evidence-segment-title">
-          <strong>{segment.title}</strong>
-          <small>
-            {segment.duration ? `${segment.duration} · ` : ""}
-            {segment.imageId ? "H5 原文区域" : "保留原始段落"}
-          </small>
-        </span>
-        <ChevronRight size={13} />
-      </span>
-      <span className="evidence-segment-original">{segment.original}</span>
-      {finished && (
-        <span style={{ display: "block", marginTop: 8 }}>
-          <Status value={segment.status} />
-        </span>
-      )}
-    </button>
-  );
-}
-
-export default function LiteratureStudio({
-  initialText,
-  onConsumed,
-}: {
-  initialText?: string;
-  onConsumed?: () => void;
-}) {
-  const [session, setSession] = useState<LiteratureSession>(() => {
-    try {
-      return restoreLiteratureSession(
-        localStorage.getItem(LITERATURE_STORE),
-        literatureCases,
-      );
-    } catch {
-      return createLiteratureSession(literatureCases[0]);
-    }
-  });
-  const [view, setView] = useState<ResultView>("comparison");
-  const [notice, setNotice] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [fileBusy, setFileBusy] = useState(false);
-  const [selectedImage, setSelectedImage] = useState("");
-  const textInput = useRef<HTMLInputElement>(null);
-  const imageInput = useRef<HTMLInputElement>(null);
-  const priorInitial = useRef<string | undefined>(undefined);
-  const inputToken = useRef(0);
-  const h5Viewport = useRef<HTMLDivElement>(null);
-  const h5RegionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const currentCase =
-    literatureCases.find((item) => item.id === session.caseId) ||
-    literatureCases[0];
-  const preset = isPresetInput(session, currentCase);
-  const segments = getLiteratureSegments(session, currentCase);
-  const selected = segments[session.selected] || segments[0];
-  const report = createLiteratureReport(session, currentCase);
-  const finished = !!report;
-  const busy = session.stage === 2 || session.stage === 3;
-  const sourceImage =
-    currentCase.images?.find((item) => item.id === selectedImage) ||
-    currentCase.images?.[0];
-  const showH5Images = currentCase.kind === "h5" && preset;
-  const resultSegment =
-    report?.segments[session.selected] || report?.segments[0];
-  const referenceIds = new Set(
-    resultSegment?.evidence.map((item) => item.referenceId),
-  );
-  const selectedReferences =
-    report?.references.filter((item) => referenceIds.has(item.id)) || [];
-
-  function dispatch(action: LiteratureAction) {
-    setSession((value) =>
-      transitionLiterature(
-        value,
-        action,
-        literatureCases.find((item) => item.id === value.caseId) ||
-          literatureCases[0],
-      ),
-    );
-  }
-  function cancelFileWork() {
-    inputToken.current += 1;
-    setFileBusy(false);
-  }
-  function loadCase(item: LiteratureCase) {
-    cancelFileWork();
-    setImageUrl("");
-    setSelectedImage(item.images?.[0]?.id || "");
-    setNotice("");
-    setView("comparison");
-    dispatch({ type: "load", case: item });
-  }
-  function restart() {
-    cancelFileWork();
-    setView("comparison");
-    setNotice("已收起报告。当前原文已保留，请重新确认本轮流程。");
-    dispatch({ type: "reset" });
-  }
-  function editInput(text: string) {
-    setView("comparison");
-    dispatch({ type: "edit", text });
-  }
-  function selectSegment(index: number) {
-    dispatch({ type: "select", index });
-    const segment = segments[index];
-    if (segment?.imageId) setSelectedImage(segment.imageId);
-  }
-
-  useEffect(() => {
-    if (session.sourceVersion === currentCase.version) return;
-    loadCase(currentCase);
-    setNotice("文献资料已更新，请重新确认原文并运行本轮流程。");
-  }, [currentCase.id, currentCase.version, session.sourceVersion]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(LITERATURE_STORE, JSON.stringify(session));
-    } catch {
-      setNotice("浏览器未能保存本轮记录。你仍可继续演示，并在完成后导出报告。");
-    }
-  }, [session]);
-
-  useEffect(() => {
-    if (session.stage !== 2 && session.stage !== 3) return;
-    const runId = session.runId;
-    const timer = window.setTimeout(
-      () => {
-        setSession((value) =>
-          transitionLiterature(
-            value,
-            { type: "tick", runId },
-            literatureCases.find((item) => item.id === value.caseId) ||
-              literatureCases[0],
-          ),
-        );
-      },
-      session.stage === 2 ? 1800 : 1800,
-    );
-    return () => window.clearTimeout(timer);
-  }, [session.stage, session.runId, session.caseId]);
-
-  useEffect(() => {
-    if (initialText === undefined) {
-      priorInitial.current = undefined;
-      return;
-    }
-    if (priorInitial.current === initialText) return;
-    priorInitial.current = initialText;
-    inputToken.current += 1;
-    setFileBusy(false);
-    setImageUrl("");
-    setView("comparison");
-    setNotice("");
-    const item =
-      literatureCases.find((entry) => entry.kind === "script") ||
-      literatureCases[0];
-    setSession((value) => {
-      const loaded = transitionLiterature(
-        value,
-        { type: "load", case: item },
-        item,
-      );
-      return initialText.trim()
-        ? transitionLiterature(
-            loaded,
-            { type: "edit", text: initialText, imageName: "" },
-            item,
-          )
-        : loaded;
-    });
-    onConsumed?.();
-  }, [initialText, onConsumed]);
-
-  useEffect(() => {
-    if (!imageUrl) return;
-    return () => URL.revokeObjectURL(imageUrl);
-  }, [imageUrl]);
-
-  useEffect(
-    () => () => {
-      inputToken.current += 1;
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!showH5Images || !selected || selected.imageId !== sourceImage?.id)
-      return;
-    const target = h5RegionRefs.current[selected.id];
-    const viewport = h5Viewport.current;
-    if (!target || !viewport) return;
-    const center = target.offsetTop + target.offsetHeight / 2;
-    viewport.scrollTop = Math.max(0, center - viewport.clientHeight / 2);
-  }, [selected?.id, sourceImage?.id, showH5Images]);
-
-  function parse() {
-    const error = validateLiteratureInput(session.input);
-    if (error) {
-      setNotice(error);
-      return;
-    }
-    setNotice("");
-    dispatch({ type: "parse" });
-  }
-  function deliver() {
-    dispatch({ type: "deliver" });
-    setView("comparison");
-    setNotice(
-      currentCase.kind === "h5" && preset
-        ? "本轮流程完成，逐段对照、审阅建议和文献记录已开放。"
-        : "本轮流程完成，逐段对照、完整建议稿和文献记录已开放。",
-    );
-  }
-  async function copy(text: string, label: string) {
-    if (!report) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      setNotice(`${label}已复制。`);
-    } catch {
-      setNotice("当前浏览器未允许复制，请使用报告导出保留内容。");
-    }
-  }
-  function exportReport(format: "json" | "md") {
-    if (!report) return;
-    const name = `${report.title.replace(/[\\/:*?"<>|]/g, "-")}-V${report.version}`;
-    download(
-      format === "json"
-        ? JSON.stringify(report, null, 2)
-        : literatureReportMarkdown(report),
-      `${name}.${format}`,
-      format === "json"
-        ? "application/json;charset=utf-8"
-        : "text/markdown;charset=utf-8",
-    );
-    setNotice(
-      `${format === "json" ? "JSON" : "Markdown"} 报告已导出，包含原文、建议表达、证据边界与过程记录。`,
-    );
-  }
-  async function importText(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file || fileBusy) return;
-    if (!/\.txt$/i.test(file.name) || file.size > 50 * 1024) {
-      setNotice("请选择 50 KB 以内的 TXT 文件。");
-      return;
-    }
-    const token = ++inputToken.current;
-    setFileBusy(true);
-    dispatch({ type: "reset" });
-    try {
-      const text = await file.text();
-      if (token !== inputToken.current) return;
-      if (text.includes("\0")) throw new Error("invalid text");
-      const error = validateLiteratureInput(text);
-      if (error) {
-        setNotice(error);
-        return;
-      }
-      setImageUrl("");
-      dispatch({ type: "edit", text, imageName: "" });
-      setView("comparison");
-      setNotice("TXT 已载入。自定义内容将保留原文，引用保持待核查。");
-    } catch {
-      if (token === inputToken.current)
-        setNotice("无法读取脚本文件，请另存为 UTF-8 TXT 或直接粘贴文字。");
-    } finally {
-      if (token === inputToken.current) setFileBusy(false);
-    }
-  }
-  async function importImage(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file || fileBusy) return;
-    if (
-      !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
-      file.size > 20 * 1024 * 1024 ||
-      !file.size
-    ) {
-      setNotice("请选择 20 MB 以内的 PNG、JPG 或 WebP 图片。");
-      return;
-    }
-    const token = ++inputToken.current;
-    setFileBusy(true);
-    dispatch({ type: "reset" });
-    const url = URL.createObjectURL(file);
-    try {
-      await new Promise<void>((resolve, reject) => {
-        const image = new Image();
-        const timer = window.setTimeout(
-          () => reject(new Error("图片读取超时")),
-          10000,
-        );
-        image.onload = () => {
-          clearTimeout(timer);
-          image.naturalWidth > 0
-            ? resolve()
-            : reject(new Error("图片无有效画面"));
-        };
-        image.onerror = () => {
-          clearTimeout(timer);
-          reject(new Error("图片无法解码"));
-        };
-        image.src = url;
-      });
-      if (token !== inputToken.current) {
-        URL.revokeObjectURL(url);
-        return;
-      }
-      setImageUrl(url);
-      dispatch({
-        type: "edit",
-        text: session.imageName === file.name ? session.input : "",
-        imageName: file.name,
-      });
-      setView("comparison");
-      setNotice("图片已载入。请手动填写并确认图片文字；当前不会进行自动 OCR。");
-    } catch {
-      URL.revokeObjectURL(url);
-      if (token === inputToken.current)
-        setNotice("图片无法读取，请检查文件或重新导出后再试。");
-    } finally {
-      if (token === inputToken.current) setFileBusy(false);
-    }
-  }
-
-  return (
-    <div className="evidence-studio">
-      <header className="evidence-heading">
-        <div className="evidence-title">
-          <FileSearch size={20} aria-hidden="true" />
-          <h1>让每一段表达，都有据可循。</h1>
-          <span className="evidence-local">本地演示</span>
-        </div>
-        <div
-          className="evidence-modes"
-          role="tablist"
-          aria-label="文献任务类型"
-        >
-          {literatureCases.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={item.id === currentCase.id}
-              onClick={() => item.id !== currentCase.id && loadCase(item)}
-            >
-              {item.kind === "script" ? (
-                <FileText size={15} />
-              ) : (
-                <ImagePlus size={15} />
-              )}
-              {item.kind === "script" ? "达人脚本优化" : "H5 文献支持"}
-            </button>
-          ))}
-        </div>
-        <div className="evidence-header-actions">
-          <button className="ev-button" type="button" onClick={restart}>
-            <RotateCcw size={13} /> 重新演示
-          </button>
-          {finished && (
-            <button
-              className="ev-button ev-primary"
-              type="button"
-              onClick={() => exportReport("md")}
-            >
-              <ArrowDownToLine size={13} /> 导出报告
-            </button>
-          )}
-        </div>
-      </header>
-
-      <ol className="evidence-steps" aria-label="文献工作流">
-        {literatureSteps.map((step, index) => {
-          const Icon = stepIcons[index];
-          const done = session.completed.includes(index);
-          const current = index === session.stage && !done;
-          const status = done
-            ? "已完成"
-            : current
-              ? busy
-                ? "模拟进行中"
-                : "等待确认"
-              : "完成前序后解锁";
-          return (
-            <li
-              key={step.title}
-              className={`evidence-step${done ? " evidence-step-done" : ""}${current ? " evidence-step-current" : ""}`}
-              aria-current={current ? "step" : undefined}
-              title={`${step.title} · ${status}`}
-            >
-              <span className="evidence-step-icon" aria-hidden="true">
-                {done ? <Check size={13} /> : <Icon size={13} />}
-              </span>
-              <span className="evidence-step-copy">
-                <strong>{step.title}</strong>
-                <small>{status}</small>
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-
-      <div className="evidence-columns">
-        <section className="evidence-source" aria-label="原文与流程">
-          <div className="evidence-panel-head">
-            <div>
-              <span className="evidence-eyebrow">SOURCE MATERIAL</span>
-              <h2>
-                {session.stage === 0 ? "确认本次输入" : "原文与待核对主张"}
-              </h2>
-            </div>
-            <span className="evidence-count">
-              {segments.length} 段 · V{session.version}
-            </span>
-          </div>
-          <div className="evidence-source-scroll">
-            <div className="evidence-source-card">
-              <div>
-                {preset ? <FileText size={13} /> : <ImagePlus size={13} />}
-                <span>
-                  {preset ? "核心 POC 原始材料" : "自定义输入 · 待建立证据"}
-                </span>
-              </div>
-              <h3>
-                {preset ? currentCase.title : session.imageName || "自定义脚本"}
-              </h3>
-              <p>
-                {preset
-                  ? currentCase.subtitle
-                  : "保留原始表达，按段整理。自定义内容不使用固定案例的文献或改写。"}
-              </p>
-              {preset && currentCase.sourceFile && (
-                <a
-                  className="evidence-source-download"
-                  href={currentCase.sourceFile}
-                  download
-                >
-                  <ArrowDownToLine size={12} /> 下载原始 Word 脚本
-                </a>
-              )}
-            </div>
-
-            {session.stage === 0 && (
-              <>
-                <div className="evidence-input-tools">
-                  <button
-                    className="ev-button ev-small"
-                    type="button"
-                    onClick={() => textInput.current?.click()}
-                    disabled={fileBusy}
-                  >
-                    <FileText size={12} /> 导入 TXT
-                  </button>
-                  <button
-                    className="ev-button ev-small"
-                    type="button"
-                    onClick={() => imageInput.current?.click()}
-                    disabled={fileBusy}
-                  >
-                    <ImagePlus size={12} /> 导入图片
-                  </button>
-                  <button
-                    className="ev-button ev-small"
-                    type="button"
-                    onClick={() => loadCase(currentCase)}
-                  >
-                    <RotateCcw size={12} /> 载入原始案例
-                  </button>
-                </div>
-                <input
-                  ref={textInput}
-                  type="file"
-                  accept=".txt,text/plain"
-                  hidden
-                  aria-label="导入文献脚本TXT"
-                  onChange={importText}
-                />
-                <input
-                  ref={imageInput}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  hidden
-                  aria-label="导入文献来源图片"
-                  onChange={importImage}
-                />
-              </>
-            )}
-
-            {showH5Images && sourceImage && (
-              <>
-                <div
-                  className="evidence-h5-images"
-                  aria-label="选择 H5 原始截图"
-                >
-                  {currentCase.images?.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-pressed={sourceImage.id === item.id}
-                      aria-label={`查看${item.label}`}
-                      onClick={() => {
-                        setSelectedImage(item.id);
-                        const index = segments.findIndex(
-                          (segment) => segment.imageId === item.id,
-                        );
-                        if (index >= 0) dispatch({ type: "select", index });
-                      }}
-                    >
-                      <img src={item.src} alt="" />
-                      <span>{item.label}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="evidence-h5-viewport" ref={h5Viewport}>
-                  <div className="evidence-h5-canvas">
-                    <img src={sourceImage.src} alt={sourceImage.label} />
-                    {segments
-                      .filter(
-                        (segment) =>
-                          segment.imageId === sourceImage.id && segment.region,
-                      )
-                      .map((segment) => (
-                        <button
-                          key={segment.id}
-                          ref={(node) => {
-                            h5RegionRefs.current[segment.id] = node;
-                          }}
-                          type="button"
-                          className="evidence-h5-region"
-                          style={{
-                            left: `${segment.region!.x}%`,
-                            top: `${segment.region!.y}%`,
-                            width: `${segment.region!.width}%`,
-                            height: `${segment.region!.height}%`,
-                          }}
-                          aria-label={`选择 H5 原文区域 ${segment.sourceNumber}：${segment.title}`}
-                          aria-pressed={selected?.id === segment.id}
-                          onClick={() =>
-                            selectSegment(
-                              segments.findIndex(
-                                (item) => item.id === segment.id,
-                              ),
-                            )
-                          }
-                        >
-                          <span>{segment.sourceNumber}</span>
-                        </button>
-                      ))}
-                  </div>
-                </div>
-                <p className="evidence-input-hint">
-                  <Info size={11} /> 原始 H5
-                  截图可上下滚动；点击标记关联对应原句。
-                </p>
-              </>
-            )}
-
-            {session.imageName &&
-              (imageUrl ? (
-                <figure className="evidence-custom-image">
-                  <img src={imageUrl} alt={`输入图片：${session.imageName}`} />
-                  <figcaption>
-                    <span>{session.imageName}</span>
-                    {session.stage === 0 && (
-                      <button
-                        type="button"
-                        aria-label="移除输入图片"
-                        onClick={() => {
-                          setImageUrl("");
-                          dispatch({
-                            type: "edit",
-                            text: session.input,
-                            imageName: "",
-                          });
-                        }}
-                      >
-                        <X size={12} />
-                      </button>
-                    )}
-                  </figcaption>
-                </figure>
-              ) : (
-                <div className="evidence-image-lost">
-                  <ImagePlus size={15} />
-                  <span>
-                    已保留图片名称与转录文字。图片只在当前会话预览，重新选择文件后可再次查看。
-                  </span>
-                </div>
-              ))}
-
-            {session.stage === 0 ? (
-              <>
-                <label
-                  className="evidence-input-label"
-                  htmlFor="evidence-input"
-                >
-                  <span>
-                    {session.imageName
-                      ? "确认图片转录文字"
-                      : currentCase.kind === "h5" && preset
-                        ? "H5 原始段落"
-                        : "脚本原文"}
-                  </span>
-                  <small>
-                    {session.input.length.toLocaleString()} / 40,000 字
-                  </small>
-                </label>
-                <textarea
-                  id="evidence-input"
-                  className="evidence-input-text"
-                  aria-label="脚本或图片转录原文"
-                  value={session.input}
-                  onChange={(event) => editInput(event.target.value)}
-                  disabled={fileBusy}
-                  placeholder="粘贴需要核对的原文，每个自然段之间留一个空行…"
-                />
-                <p className="evidence-input-hint">
-                  <Info size={11} />
-                  <span>
-                    {session.imageName
-                      ? "请人工核对转录文字；当前没有自动 OCR。"
-                      : "修改原文后按自定义输入处理，引用保持待核查。完整原始案例使用预置关联。"}
-                  </span>
-                </p>
-                {preset && (
-                  <p className="evidence-source-note">
-                    来源：{currentCase.source}
-                    <br />
-                    {currentCase.sourceNote}
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="evidence-input-label">
-                  <span>{showH5Images ? "H5 内容区域" : "原始脚本段落"}</span>
-                  <button
-                    type="button"
-                    className="ev-button ev-quiet ev-small"
-                    onClick={restart}
-                  >
-                    重新编辑
-                  </button>
-                </div>
-                <div
-                  className="evidence-segment-list"
-                  aria-label="原文段落列表"
-                >
-                  {segments.map((segment, index) => (
-                    <SourceSegmentButton
-                      key={segment.id}
-                      segment={segment}
-                      selected={selected?.id === segment.id}
-                      finished={finished}
-                      onSelect={() => selectSegment(index)}
-                    />
-                  ))}
-                </div>
-                {selected && !finished && (
-                  <section className="evidence-claim-panel">
-                    <h3>
-                      <Quote size={13} /> 第 {selected.sourceNumber} 段 ·
-                      原文与主张
-                    </h3>
-                    <p className="evidence-claim-original">
-                      {selected.original}
-                    </p>
-                    <span className="evidence-claim-label">
-                      本段需要核对的表述
-                    </span>
-                    <ul className="evidence-claims">
-                      {selected.claims.map((claim, index) => (
-                        <li key={index}>{claim}</li>
-                      ))}
-                    </ul>
-                    {selected.keywords.length > 0 && (
-                      <div className="evidence-keywords">
-                        {selected.keywords.map((keyword) => (
-                          <span key={keyword}>{keyword}</span>
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                )}
-              </>
-            )}
-          </div>
-          <div className="evidence-flow-controls">
-            {session.stage === 0 && (
-              <div className="evidence-source-actions">
-                <span>
-                  {fileBusy ? "正在读取本地文件…" : "原文确认后进入主张拆解"}
-                </span>
-                <button
-                  type="button"
-                  className="ev-button ev-primary"
-                  disabled={fileBusy}
-                  onClick={parse}
-                >
-                  确认输入，拆解主张 <ArrowRight size={13} />
-                </button>
-              </div>
-            )}
-            {session.stage === 1 && (
-              <div className="evidence-source-actions">
-                <span>确认主张范围后继续</span>
-                <button
-                  type="button"
-                  className="ev-button ev-primary"
-                  onClick={() => {
-                    setNotice("");
-                    dispatch({ type: "match" });
-                  }}
-                >
-                  确认主张，开始匹配 <ArrowRight size={13} />
-                </button>
-              </div>
-            )}
-            {busy && (
-              <div className="evidence-running" role="status">
-                <div>
-                  <LoaderCircle className="evidence-spin" size={16} />
-                  {session.stage === 2
-                    ? "正在整理文献关联"
-                    : "正在整理建议表达"}
-                </div>
-                <p>
-                  {session.stage === 2
-                    ? "按原文主张整理本地候选来源，保留尚未核查的关联。"
-                    : "建议表达、修改理由与来源边界将随最终报告一起交付。"}
-                </p>
-                <small>本地预置流程 · 不调用实时检索或自动医学审批</small>
-              </div>
-            )}
-            {session.stage === 4 && (
-              <div className="evidence-preflight">
-                <h3>
-                  <ListChecks size={15} /> 确认报告交付范围
-                </h3>
-                <p>
-                  本轮已整理 {segments.length}{" "}
-                  段原文。报告将保留建议表达、关联依据及待核查项；来源核对不等于医学审批通过。
-                </p>
-                {!preset && (
-                  <p>
-                    当前为自定义内容，将保留原文并标注待核查，不产生预设改写或引用。
-                  </p>
-                )}
-                <button
-                  type="button"
-                  className="ev-button ev-primary"
-                  onClick={deliver}
-                >
-                  完成流程，查看报告 <CheckCheck size={14} />
-                </button>
-              </div>
-            )}
-            {finished && (
-              <div className="evidence-source-actions">
-                <span>
-                  <CheckCheck size={12} /> 本轮流程已完成
-                </span>
-                <button
-                  type="button"
-                  className="ev-button ev-small"
-                  onClick={restart}
-                >
-                  <RotateCcw size={12} /> 重新演示
-                </button>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {!report ? (
-          <LockedResult session={session} kind={currentCase.kind} />
-        ) : (
-          <section className="evidence-result" aria-label="已交付文献报告">
-            <div
-              className="evidence-result-tabs"
-              role="tablist"
-              aria-label="报告视图"
-            >
-              {(
-                [
-                  ["comparison", "逐段对照", Quote],
-                  [
-                    "manuscript",
-                    preset
-                      ? currentCase.kind === "h5"
-                        ? "修改建议汇总"
-                        : "完整优化稿"
-                      : "原文待整理",
-                    FileText,
-                  ],
-                  ["references", "参考文献", BookOpen],
-                  ["process", "过程记录", GitBranch],
-                ] as const
-              ).map(([key, label, Icon]) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={view === key}
-                  onClick={() => setView(key)}
-                >
-                  <Icon size={13} />
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="evidence-result-body">
-              <div className="evidence-report-heading">
-                <div>
-                  <span className="evidence-eyebrow">
-                    PARAGRAPH EVIDENCE MAP
-                  </span>
-                  <h2>
-                    {view === "comparison"
-                      ? "原文与依据，逐段对应。"
-                      : view === "manuscript"
-                        ? preset
-                          ? currentCase.kind === "h5"
-                            ? "逐项审阅建议，保留核查边界。"
-                            : "完整建议稿，清楚保留边界。"
-                          : "原文待整理，等待建立证据。"
-                        : view === "references"
-                          ? "本轮内容的参考来源"
-                          : "每一步，都有记录。"}
-                  </h2>
-                  <p>
-                    {preset
-                      ? "保留原始表达，让建议、理由与支持范围同处一页。"
-                      : "自定义内容未进行在线检索，原文与待核查主张已保留。"}
-                  </p>
-                </div>
-                <span className="evidence-count">V{session.version}</span>
-              </div>
-              <div className="evidence-summary-grid">
-                <div>
-                  <strong>{report.segments.length}</strong>
-                  <span>原文段落</span>
-                </div>
-                <div>
-                  <strong>{report.references.length}</strong>
-                  <span>关联来源</span>
-                </div>
-                <div>
-                  <strong>
-                    {
-                      report.segments.filter(
-                        (item) => item.status === "supported",
-                      ).length
-                    }
-                  </strong>
-                  <span>有对应依据</span>
-                </div>
-                <div>
-                  <strong>
-                    {
-                      report.segments.filter(
-                        (item) =>
-                          item.status === "pending" ||
-                          item.status === "partial",
-                      ).length
-                    }
-                  </strong>
-                  <span>需保留边界</span>
-                </div>
-              </div>
-
-              {view === "comparison" && resultSegment && (
-                <>
-                  <article className="evidence-comparison">
-                    <div className="evidence-comparison-header">
-                      <strong>
-                        段落 {resultSegment.sourceNumber} ·{" "}
-                        {resultSegment.title}
-                      </strong>
-                      <Status value={resultSegment.status} />
-                    </div>
-                    <div className="evidence-text-label">
-                      <Quote size={11} /> 原始表达
-                    </div>
-                    <p className="evidence-original-text">
-                      {resultSegment.original}
-                    </p>
-                    <div
-                      className={`evidence-revised-box${resultSegment.status === "pending" ? " evidence-revised-pending" : ""}`}
-                    >
-                      <div className="evidence-text-label">
-                        <Sparkles size={11} />
-                        {preset
-                          ? currentCase.kind === "h5"
-                            ? "审阅建议 · 非可发布稿"
-                            : "建议表达"
-                          : "原文保留 · 待核查"}
-                      </div>
-                      <p>{resultSegment.revised}</p>
-                    </div>
-                    <div className="evidence-reason">
-                      <Info size={13} />
-                      <p>
-                        <b>调整理由</b>
-                        {resultSegment.reason}
-                      </p>
-                    </div>
-                    {(resultSegment.duration ||
-                      resultSegment.visual ||
-                      resultSegment.caption) && (
-                      <div className="evidence-source-meta">
-                        {resultSegment.duration && (
-                          <div>
-                            <span>时长</span>
-                            {resultSegment.duration}
-                          </div>
-                        )}
-                        {resultSegment.visual && (
-                          <div>
-                            <span>画面</span>
-                            {resultSegment.visual}
-                          </div>
-                        )}
-                        {resultSegment.caption && (
-                          <div>
-                            <span>花字</span>
-                            {resultSegment.caption}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </article>
-                  <div className="evidence-section-title">
-                    <h3>
-                      <BookOpen size={15} /> 对应参考来源
-                    </h3>
-                    <span>{selectedReferences.length} 条</span>
-                  </div>
-                  {selectedReferences.length ? (
-                    selectedReferences.map((reference) => (
-                      <ReferenceCard
-                        key={reference.id}
-                        reference={reference}
-                        number={
-                          report.references.findIndex(
-                            (item) => item.id === reference.id,
-                          ) + 1
-                        }
-                        links={resultSegment.evidence.filter(
-                          (item) => item.referenceId === reference.id,
-                        )}
-                        onCopy={copy}
-                      />
-                    ))
-                  ) : (
-                    <div className="evidence-empty-evidence">
-                      <FileSearch size={24} />
-                      {resultSegment.status === "not-needed"
-                        ? "本段属于叙事或行动建议，无需为每一句补充文献。"
-                        : "当前没有已建立的对应来源。保留原文与主张，等待人工核对。"}
-                    </div>
-                  )}
-                </>
-              )}
-
-              {view === "manuscript" && (
-                <>
-                  <div className="evidence-section-title">
-                    <h3>
-                      <FileText size={15} />{" "}
-                      {preset
-                        ? currentCase.kind === "h5"
-                          ? "修改建议汇总"
-                          : "完整建议稿"
-                        : "原文待整理"}
-                    </h3>
-                    <button
-                      type="button"
-                      className="ev-button ev-small"
-                      onClick={() =>
-                        copy(
-                          report.segments
-                            .map((item) => item.revised)
-                            .join("\n\n"),
-                          currentCase.kind === "h5" && preset
-                            ? "审阅建议"
-                            : "完整稿件",
-                        )
-                      }
-                    >
-                      <Copy size={12} />{" "}
-                      {currentCase.kind === "h5" && preset
-                        ? "复制审阅建议"
-                        : "复制完整稿"}
-                    </button>
-                  </div>
-                  <div className="evidence-manuscript">
-                    {report.segments.map((segment) => (
-                      <section key={segment.id}>
-                        <h3>
-                          <span>{segment.sourceNumber.padStart(2, "0")}</span>
-                          {segment.title}
-                          <Status value={segment.status} />
-                        </h3>
-                        <p>{segment.revised}</p>
-                        {segment.evidence.length > 0 && (
-                          <small>
-                            关联来源：
-                            {Array.from(
-                              new Set(
-                                segment.evidence.map(
-                                  (link) => link.referenceId,
-                                ),
-                              ),
-                            )
-                              .map(
-                                (referenceId) =>
-                                  report.references.find(
-                                    (ref) => ref.id === referenceId,
-                                  )?.label || referenceId,
-                              )
-                              .join("、")}
-                          </small>
-                        )}
-                      </section>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {view === "references" && (
-                <>
-                  {report.research && (
-                    <div className="evidence-research-note">
-                      <h3>
-                        <Search size={15} /> 已完成联网检索{" "}
-                        <span>{report.research.performedAt}</span>
-                      </h3>
-                      <p>{report.research.summary}</p>
-                      {report.research.bibliographyUrl?.startsWith(
-                        "/literature/references/",
-                      ) && (
-                        <a
-                          className="evidence-source-download"
-                          href={report.research.bibliographyUrl}
-                          download
-                        >
-                          <ArrowDownToLine size={13} /> 下载参考文献（RIS）
-                        </a>
-                      )}
-                      <details>
-                        <summary>查看检索词与核对范围</summary>
-                        <ol>
-                          {report.research.queries.map((query, index) => (
-                            <li key={`${query.query}-${index}`}>
-                              <strong>{query.source}</strong>
-                              <p>{query.query}</p>
-                            </li>
-                          ))}
-                        </ol>
-                        {report.research.limitations.map((note) => (
-                          <p key={note}>{note}</p>
-                        ))}
-                      </details>
-                    </div>
-                  )}
-                  {report.references.length ? (
-                    report.references.map((reference, index) => (
-                      <ReferenceCard
-                        key={reference.id}
-                        reference={reference}
-                        number={index + 1}
-                        onCopy={copy}
-                      />
-                    ))
-                  ) : (
-                    <div className="evidence-empty-evidence">
-                      <BookOpen size={25} />
-                      本轮没有可直接关联的参考文献。自定义输入仍需建立并核对证据。
-                    </div>
-                  )}
-                </>
-              )}
-
-              {view === "process" && (
-                <ol className="evidence-log-list">
-                  {report.logs.map((log, index) => (
-                    <li key={`${log.step}-${index}`}>
-                      <span className="evidence-log-icon">
-                        <Check size={12} />
-                      </span>
-                      <div>
-                        <strong>
-                          {String(log.step + 1).padStart(2, "0")} ·{" "}
-                          {literatureSteps[log.step]?.title}
-                        </strong>
-                        <time>{log.at}</time>
-                        <p>{log.detail}</p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
-              )}
-              <p className="evidence-report-footnote">
-                <CircleAlert size={12} /> {report.note}
-              </p>
-            </div>
-            <footer className="evidence-output-actions">
-              <button
-                type="button"
-                className="ev-button"
-                onClick={() => exportReport("md")}
-              >
-                <ArrowDownToLine size={12} /> 导出 Markdown
-              </button>
-              <button
-                type="button"
-                className="ev-button"
-                onClick={() => exportReport("json")}
-              >
-                <ArrowDownToLine size={12} /> 导出 JSON
-              </button>
-              <button
-                type="button"
-                className="ev-button"
-                onClick={() =>
-                  copy(
-                    report.segments.map((item) => item.revised).join("\n\n"),
-                    currentCase.kind === "h5" && preset
-                      ? "审阅建议"
-                      : "完整稿件",
-                  )
-                }
-              >
-                <Copy size={12} />{" "}
-                {currentCase.kind === "h5" && preset
-                  ? "复制审阅建议"
-                  : "复制稿件"}
-              </button>
-            </footer>
-          </section>
-        )}
-      </div>
-      {notice && (
-        <footer className="evidence-notice" role="status">
-          <Info size={14} />
-          <span>{notice}</span>
-          <button
-            type="button"
-            aria-label="关闭提示"
-            onClick={() => setNotice("")}
-          >
-            <X size={13} />
-          </button>
-        </footer>
-      )}
-    </div>
   );
 }

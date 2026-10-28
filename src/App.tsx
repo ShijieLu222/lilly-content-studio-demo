@@ -51,7 +51,8 @@ import { productInfo, seriesItems } from "./content";
 import type { ProductKind } from "./content";
 import AssetLibrary from "./components/AssetLibrary";
 import WorkflowMap from "./components/WorkflowMap";
-import LiteratureStudio from "./components/LiteratureStudio";
+import LiteratureStudio from "./components/LiteratureWorkspace";
+import VideoChatStudio from "./components/VideoChatStudio";
 import VideoResults from "./components/VideoResults";
 import VideoWorkflow from "./components/VideoWorkflow";
 import ResultPending from "./components/ResultPending";
@@ -212,11 +213,15 @@ function ConceptArt({
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>(readProjects);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get("project"),
+  );
   const [page, setPage] = useState<Page>(() =>
     new URLSearchParams(window.location.search).get("page") === "literature"
       ? "literature"
-      : "home",
+      : new URLSearchParams(window.location.search).get("page") === "video"
+        ? "studio"
+        : "home",
   );
   const [tab, setTab] = useState<"chat" | "flow" | "records">("chat");
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -226,8 +231,9 @@ export default function App() {
   const [modal, setModal] = useState<Modal>(null);
   const [toast, setToast] = useState("");
   const [input, setInput] = useState("");
-  const [homeKind, setHomeKind] = useState<HomeKind>("article");
+  const [homeKind, setHomeKind] = useState<HomeKind>("video");
   const [literatureInput, setLiteratureInput] = useState<string | undefined>();
+  const [literatureEntry, setLiteratureEntry] = useState(0);
   const [selectedPoster, setSelectedPoster] = useState(0);
   const [previewVideoId, setPreviewVideoId] = useState<string>(
     videoVersions[0].id,
@@ -248,9 +254,12 @@ export default function App() {
       return [true, true, true, true];
     }
   });
+  const routeRecoveryRef = useRef(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
   const active = projects.find((p) => p.id === activeId);
+  const focusedWorkspace =
+    page === "literature" || (page === "studio" && active?.kind === "video");
   const info = active ? productInfo[active.kind] : productInfo.article;
   const shownStage = inspectedStage ?? active?.stage ?? 0;
   const busy = !!active && [0, 1, 4].includes(active.stage);
@@ -297,6 +306,7 @@ export default function App() {
       setAssetLoadState("ready");
       setProjects((all) =>
         all.map((p) =>
+          p.kind === "article" &&
           p.stage === 6 &&
           p.confirmedAssets !== signatureFor(p.kind, next, videoIdFor(p))
             ? {
@@ -347,7 +357,8 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    if (!active || ![0, 1, 4].includes(active.stage)) return;
+    if (!active || active.kind === "video" || ![0, 1, 4].includes(active.stage))
+      return;
     const id = active.id,
       stage = active.stage;
     const timer = setTimeout(
@@ -425,6 +436,28 @@ export default function App() {
         all.map((p) => (p.id === active.id ? { ...p, ...patch } : p)),
       );
   }
+  useEffect(() => {
+    if (page === "studio" && !active) {
+      if (!routeRecoveryRef.current) {
+        routeRecoveryRef.current = true;
+        start("video");
+      }
+      return;
+    }
+    routeRecoveryRef.current = false;
+    const url = new URL(window.location.href);
+    if (page === "literature") {
+      url.searchParams.set("page", "literature");
+      url.searchParams.delete("project");
+    } else if (page === "studio" && active?.kind === "video") {
+      url.searchParams.set("page", "video");
+      url.searchParams.set("project", active.id);
+    } else {
+      url.searchParams.delete("page");
+      url.searchParams.delete("project");
+    }
+    window.history.replaceState(null, "", url);
+  }, [page, active?.id]);
   function start(kind: ProductKind, prompt?: string, videoVersionId?: string) {
     const videoVersion = videoVersions.find((v) => v.id === videoVersionId);
     const p: Project = {
@@ -433,8 +466,9 @@ export default function App() {
       title:
         kind === "article"
           ? "礼医 · 医生服务系列创作"
-          : `领峰者之夜 · ${videoVersion?.label || "大会开场创作"}`,
-      prompt: prompt?.trim() || productInfo[kind].starter,
+          : prompt?.trim().slice(0, 22) || "新的视频创作",
+      prompt:
+        prompt?.trim() || (kind === "video" ? "" : productInfo[kind].starter),
       stage: 0,
       completed: [],
       concept: videoVersion?.conceptId || null,
@@ -670,6 +704,7 @@ export default function App() {
     if (selectedAsset) saveBlob(selectedAsset.blob, selectedAsset.name);
   }
   function openLiterature(text?: string) {
+    setLiteratureEntry((entry) => entry + 1);
     setLiteratureInput(text);
     setPage("literature");
   }
@@ -680,9 +715,7 @@ export default function App() {
     } else start(homeKind, input);
   }
   const switchProduct = (kind: ProductKind) => {
-    const previous = projects.find(
-      (p) => p.kind === kind && (kind !== "video" || p.videoVersionId),
-    );
+    const previous = projects.find((p) => p.kind === kind);
     if (previous) openProject(previous);
     else start(kind);
   };
@@ -1343,32 +1376,47 @@ export default function App() {
   );
 
   return (
-    <div className={`app-shell ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
+    <div
+      className={`app-shell ${sidebarOpen ? "" : "sidebar-collapsed"} ${focusedWorkspace ? "focused-workspace" : ""}`}
+    >
       <aside className="sidebar">
         <div className="sidebar-brand">
           <Logo />
           <button
             className="icon-button"
-            title="收起侧栏"
-            onClick={() => setSidebarOpen(false)}
+            title={sidebarOpen ? "收起侧栏" : "展开侧栏"}
+            aria-label={sidebarOpen ? "收起侧栏" : "展开侧栏"}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
           >
-            <PanelLeftClose size={17} />
+            {sidebarOpen ? (
+              <PanelLeftClose size={17} />
+            ) : (
+              <PanelLeftOpen size={17} />
+            )}
           </button>
         </div>
         <button
           className="new-project"
+          aria-label="开启新创作"
+          title="开启新创作"
           onClick={() => {
-            setPage("home");
-            setActiveId(null);
-            setInput("");
+            if (page === "studio" && active?.kind === "video") start("video");
+            else {
+              setPage("home");
+              setActiveId(null);
+              setInput("");
+            }
           }}
         >
           <Plus size={18} />
-          开启新创作<span>⌘</span>
+          <span className="new-project-label">开启新创作</span>
+          <span>⌘</span>
         </button>
         <div className="nav-label">创作空间</div>
         <nav>
           <button
+            aria-label="工作台"
+            title="工作台"
             className={page === "home" ? "active" : ""}
             onClick={() => setPage("home")}
           >
@@ -1379,6 +1427,8 @@ export default function App() {
             className={
               page === "studio" && active?.kind === "article" ? "active" : ""
             }
+            aria-label="图文创作"
+            title="图文创作"
             onClick={() => switchProduct("article")}
           >
             <FileImage size={18} />
@@ -1388,12 +1438,16 @@ export default function App() {
             className={
               page === "studio" && active?.kind === "video" ? "active" : ""
             }
+            aria-label="视频创作"
+            title="视频创作"
             onClick={() => switchProduct("video")}
           >
             <Clapperboard size={18} />
             视频创作<span className="nav-new purple">Agent</span>
           </button>
           <button
+            aria-label="文献支持"
+            title="文献支持"
             className={page === "literature" ? "active" : ""}
             onClick={() => openLiterature()}
           >
@@ -1452,64 +1506,64 @@ export default function App() {
         </div>
       </aside>
       <main className="main">
-        <header className="topbar">
-          <div className="breadcrumb">
-            {!sidebarOpen && (
-              <button
-                className="icon-button"
-                title="展开侧栏"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <PanelLeftOpen size={18} />
-              </button>
-            )}
-            <span>Lilly</span>
-            <ChevronRight size={13} />
-            <strong>
-              {page === "home"
-                ? "创意工作台"
-                : page === "assets"
-                  ? "素材库"
-                  : page === "literature"
-                    ? "脚本优化与文献支持"
+        {!focusedWorkspace && (
+          <header className="topbar">
+            <div className="breadcrumb">
+              {!sidebarOpen && (
+                <button
+                  className="icon-button"
+                  title="展开侧栏"
+                  onClick={() => setSidebarOpen(true)}
+                >
+                  <PanelLeftOpen size={18} />
+                </button>
+              )}
+              <span>Lilly</span>
+              <ChevronRight size={13} />
+              <strong>
+                {page === "home"
+                  ? "创意工作台"
+                  : page === "assets"
+                    ? "素材库"
                     : page === "brand"
                       ? "品牌规范"
                       : info.name}
-            </strong>
-          </div>
-          <div className="topbar-right">
-            <div className="topbar-utilities">
-              <button
-                className="icon-button"
-                title="素材库"
-                aria-label="打开素材库"
-                onClick={() => setModal("assets")}
-              >
-                <FolderOpen size={17} />
-              </button>
-              <button
-                className="icon-button"
-                title="品牌规范"
-                aria-label="查看品牌设置"
-                onClick={() => setPage("brand")}
-              >
-                <ShieldCheck size={17} />
-              </button>
+              </strong>
             </div>
-            <span className="demo-label">
-              <span className="tiny-dot" />
-              POC 演示版
-            </span>
-            <button
-              className="icon-button"
-              title="演示指南"
-              onClick={() => setModal("help")}
-            >
-              <CircleHelp size={18} />
-            </button>
-            <span className="mini-avatar">L</span>
-          </div>
-        </header>
+            <div className="topbar-right">
+              <div className="topbar-utilities">
+                <button
+                  className="icon-button"
+                  title="素材库"
+                  aria-label="打开素材库"
+                  onClick={() => setModal("assets")}
+                >
+                  <FolderOpen size={17} />
+                </button>
+                <button
+                  className="icon-button"
+                  title="品牌规范"
+                  aria-label="查看品牌设置"
+                  onClick={() => setPage("brand")}
+                >
+                  <ShieldCheck size={17} />
+                </button>
+              </div>
+              <span className="demo-label">
+                <span className="tiny-dot" />
+                POC 演示版
+              </span>
+              <button
+                className="icon-button"
+                title="演示指南"
+                onClick={() => setModal("help")}
+              >
+                <CircleHelp size={18} />
+              </button>
+              <span className="mini-avatar">L</span>
+            </div>
+          </header>
+        )}
         {page === "home" && (
           <div className="home-page">
             <section className="welcome-hero">
@@ -1642,14 +1696,14 @@ export default function App() {
                     <div className="product-en">VIDEO & MOTION</div>
                     <h3>视频创作 Agent</h3>
                     <p>
-                      「领峰者之夜」大会开场。
+                      用文字与参考图片，聊出你的下一支视频。
                       <br />
-                      双版本成片，贯穿创意到交付。
+                      持续创作、编辑重发，每次结果都保留。
                     </p>
                     <div className="product-tags">
-                      <span>开场动画</span>
-                      <span>双版本对比</span>
-                      <span>真实分镜</span>
+                      <span>全能参考</span>
+                      <span>5–15s</span>
+                      <span>多轮对话</span>
                     </div>
                     <span className="product-link">
                       开始视频创作
@@ -1666,8 +1720,8 @@ export default function App() {
                       <div className="film-picture">
                         <img
                           className="video-home-frame"
-                          src={videoVersions[1].poster}
-                          alt="领峰者之夜开场画面"
+                          src="/assets/video-references/poc-reference-1.png"
+                          alt="诊疗路径视频参考图"
                         />
                         <Play size={29} fill="currentColor" />
                       </div>
@@ -1705,9 +1759,9 @@ export default function App() {
                       从达人脚本与 H5 到建议表达和逐段依据。
                     </p>
                     <div className="product-tags">
-                      <span>主张拆解</span>
-                      <span>文献匹配</span>
-                      <span>表达优化</span>
+                      <span>文案润色</span>
+                      <span>合规审核</span>
+                      <span>引用添加</span>
                     </div>
                     <span className="product-link">
                       开始文献溯源
@@ -1754,7 +1808,7 @@ export default function App() {
                     homeKind === "literature"
                       ? "粘贴需要查找文献的脚本，以空行分段；进入工作区后逐段确认主张…"
                       : homeKind === "video"
-                        ? "例如：为领峰者之夜大会制作两个版本的开场动画…"
+                        ? "例如：参考三张图片，制作一支 15 秒的诊疗路径介绍视频…"
                         : "例如：为礼医制作 5 张风格统一的医生服务海报，专业、明亮，有一点探索感…"
                   }
                   value={input}
@@ -1844,17 +1898,28 @@ export default function App() {
             </section>
             <footer className="home-footer">
               <span>LILLY · CONTENT STUDIO</span>
-              <span>本地工作流演示 · 成品由素材库接入</span>
+              <span>本地交互演示 · 创作内容保存在此浏览器</span>
             </footer>
           </div>
         )}
         {page === "literature" && (
           <LiteratureStudio
+            key={literatureEntry}
             initialText={literatureInput}
             onConsumed={() => setLiteratureInput(undefined)}
           />
         )}
-        {page === "studio" && active && (
+        {page === "studio" && active?.kind === "video" && (
+          <VideoChatStudio
+            key={active.id}
+            projectId={active.id}
+            initialPrompt={active.prompt}
+            title={active.title}
+            onTitleChange={(title) => update({ title })}
+            onNotify={notify}
+          />
+        )}
+        {page === "studio" && active && !["video"].includes(active.kind) && (
           <div className={`studio-page compact-studio ${active.kind}-studio`}>
             <div className="studio-toolbar">
               <div className="studio-heading">

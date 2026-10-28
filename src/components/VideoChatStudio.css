@@ -1,0 +1,1589 @@
+.vchat-studio {
+  --vchat-accent: #d82d36;
+  --vchat-border: #eae5e8;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  color: #322d36;
+  background: #faf9fa;
+}
+.vchat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 30px 14px;
+}
+.vchat-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.vchat-header-icon {
+  height: 42px;
+  width: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #efdbdf;
+  border-radius: 13px;
+  color: #c33d50;
+  background: #fff2f3;
+  flex: 0 0 auto;
+}
+.vchat-header h1 {
+  font-size: 19px;
+  line-height: 1.4;
+  font-weight: 650;
+  letter-spacing: -0.25px;
+  max-width: 42vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vchat-header p {
+  font-size: 11px;
+  color: #948b94;
+  margin-top: 3px;
+}
+.vchat-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.vchat-local-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #a58c93;
+}
+.vchat-local-label > span {
+  width: 5px;
+  height: 5px;
+  background: #d9909d;
+  border-radius: 50%;
+}
+.vchat-save-state {
+  color: #8b9490;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 47px;
+}
+.vchat-save-state.has-error {
+  color: #b97831;
+}
+.vchat-feed {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+  padding: 0 30px;
+}
+.vchat-feed-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  min-height: 100%;
+}
+.vchat-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  height: 300px;
+  color: #aa929b;
+}
+.vchat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: clamp(26px, 6vh, 65px) 0 35px;
+}
+.vchat-empty-emblem {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  color: #cf485c;
+  background: linear-gradient(135deg, #fff9f9, #f8e5ea);
+  border: 1px solid #ecd2da;
+  border-radius: 21px;
+  box-shadow: 0 8px 24px #d0708420;
+  transform: rotate(-5deg);
+  margin-bottom: 21px;
+}
+.vchat-empty-emblem > span {
+  position: absolute;
+  top: -5px;
+  right: -7px;
+  background: #fff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 9px #b3809520;
+  color: #b77596;
+}
+.vchat-kicker {
+  color: #b497a1;
+  font-size: 10px;
+  letter-spacing: 2.6px;
+  font-weight: 600;
+}
+.vchat-empty h2 {
+  font-size: clamp(25px, 2.5vw, 35px);
+  line-height: 1.55;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  margin-top: 12px;
+  color: #40343f;
+}
+.vchat-empty > p {
+  font-size: 12px;
+  line-height: 1.9;
+  color: #9d929b;
+  margin-top: 13px;
+}
+.vchat-inspirations {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 810px;
+  margin-top: 30px;
+}
+.vchat-inspirations > button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 8px;
+  padding: 19px 18px 18px;
+  background: #fff;
+  border: 1px solid #ece4e9;
+  border-radius: 13px;
+}
+.vchat-inspirations > button:hover {
+  border-color: #d6a7b5;
+  transform: translateY(-2px);
+  box-shadow: 0 7px 22px #8d59730b;
+}
+.vchat-inspirations > button > svg:first-child {
+  color: #b9869b;
+  margin-bottom: 2px;
+}
+.vchat-inspirations > button > svg:last-child {
+  position: absolute;
+  right: 14px;
+  top: 19px;
+  color: #c8b9c0;
+  transform: rotate(45deg);
+}
+.vchat-inspirations strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: #695662;
+}
+.vchat-inspirations span {
+  font-size: 10px;
+  color: #a2969f;
+  line-height: 1.5;
+}
+.vchat-turns {
+  padding: 30px 0 22px;
+}
+.vchat-turn + .vchat-turn {
+  margin-top: 36px;
+}
+.vchat-user-message {
+  max-width: 760px;
+  margin-left: auto;
+  background: #f2ecef;
+  border: 1px solid #eae0e6;
+  border-radius: 16px 16px 4px 16px;
+  padding: 16px 19px 11px;
+}
+.vchat-user-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #b19da9;
+  gap: 18px;
+  font-size: 10px;
+  margin-bottom: 8px;
+}
+.vchat-user-message > p {
+  line-height: 1.9;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #5b4d58;
+}
+.vchat-request-params {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e7dce3;
+  font-size: 10px;
+  color: #a58e9c;
+}
+.vchat-request-params > span + span:before {
+  content: "·";
+  margin-right: 6px;
+  color: #c0aeb9;
+}
+.vchat-request-params button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 2px 4px;
+  color: #a18394;
+}
+.vchat-request-params button:hover {
+  color: #b64b63;
+}
+.vchat-assistant-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  margin-top: 23px;
+}
+.vchat-assistant-avatar {
+  width: 33px;
+  height: 33px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  border-radius: 11px;
+  background: linear-gradient(140deg, #e14b57, #c52c42);
+  box-shadow: 0 3px 9px #d039421b;
+  flex: 0 0 auto;
+}
+.vchat-assistant-body {
+  min-width: 0;
+  width: min(100%, 780px);
+}
+.vchat-assistant-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+}
+.vchat-assistant-heading strong {
+  font-size: 12px;
+  font-weight: 650;
+  color: #665561;
+}
+.vchat-assistant-heading > span {
+  color: #b0a2ac;
+  font-size: 10px;
+}
+.vchat-assistant-copy {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #9c8997;
+  margin: 5px 0 13px;
+}
+.vchat-result-card {
+  overflow: hidden;
+  max-width: 680px;
+  border: 1px solid #e6dce3;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 5px 16px #6a465507;
+}
+.vchat-result-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 15px;
+  font-size: 11px;
+  color: #7c6273;
+}
+.vchat-sample-label {
+  font-size: 9px;
+  color: #a58b9c;
+  background: #f8f2f6;
+  padding: 3px 7px;
+  border-radius: 4px;
+}
+.vchat-video-wrap {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #1b0e28;
+}
+.vchat-video-wrap video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.vchat-media-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  color: #e7d1e1;
+  font-size: 12px;
+  background: #21122d;
+}
+.vchat-media-error button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid #7b5d80;
+}
+.vchat-result-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 15px 0;
+  font-size: 10px;
+  color: #ac9da7;
+}
+.vchat-result-info > span:last-child {
+  color: #c2b4bd;
+}
+.vchat-result-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px 12px;
+}
+.vchat-reuse {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #eadde5;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 11px;
+  color: #a46780;
+  background: #fffafb;
+}
+.vchat-reuse:hover {
+  background: #fbf0f4;
+}
+.vchat-result-actions > div {
+  display: flex;
+  gap: 5px;
+}
+.vchat-icon-button {
+  width: 31px;
+  height: 31px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: #a695a1;
+}
+.vchat-icon-button:hover {
+  background: #f7f1f5;
+  color: #a96580;
+}
+.vchat-preparing {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-height: 120px;
+  padding: 20px;
+  margin-top: 10px;
+  border: 1px solid #ece1e7;
+  background: #fff;
+  border-radius: 14px;
+  max-width: 680px;
+}
+.vchat-preparing-art {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 15px;
+  background: #fbf0f5;
+  color: #c5a1b5;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.vchat-preparing-art span {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    #fff9 50%,
+    transparent 80%
+  );
+  animation: vchat-shimmer 1.6s infinite;
+}
+.vchat-preparing strong,
+.vchat-interrupted strong {
+  font-size: 12px;
+  color: #8b6b80;
+  font-weight: 500;
+}
+.vchat-preparing p,
+.vchat-interrupted p {
+  font-size: 11px;
+  margin-top: 7px;
+  line-height: 1.7;
+  color: #ac97a6;
+}
+.vchat-preparing > svg {
+  margin-left: auto;
+  color: #bb91a8;
+}
+.vchat-interrupted {
+  display: flex;
+  gap: 12px;
+  padding: 20px;
+  margin-top: 9px;
+  border: 1px solid #efdfcc;
+  border-radius: 12px;
+  background: #fffaf3;
+  color: #b88b52;
+  max-width: 680px;
+}
+.vchat-interrupted button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  margin-top: 13px;
+  padding: 5px 0;
+  color: #a97942;
+}
+.vchat-compose-area {
+  position: relative;
+  width: 100%;
+  padding: 13px 30px 12px;
+  background: linear-gradient(to bottom, #faf9fa00, #faf9fa 12px);
+  flex: 0 0 auto;
+}
+.vchat-composer {
+  position: relative;
+  max-width: 1040px;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid #dfcdd8;
+  border-radius: 16px;
+  box-shadow: 0 5px 25px #7550660b;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+.vchat-composer:focus-within {
+  border-color: #cba4b6;
+  box-shadow:
+    0 4px 24px #92617812,
+    0 0 0 2px #f6ebf0;
+}
+.vchat-composer textarea {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  max-height: 180px;
+  resize: vertical;
+  background: none;
+  border: 0;
+  padding: 18px 20px 10px;
+  font-size: 13px;
+  color: #665363;
+  line-height: 1.8;
+}
+.vchat-composer textarea::placeholder {
+  color: #b4a1ad;
+}
+.vchat-composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 13px 13px;
+}
+.vchat-composer-options {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.vchat-upload-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #eadde5;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #aa7c94;
+}
+.vchat-upload-button:hover {
+  background: #fcf4f7;
+}
+.vchat-toolbar-divider {
+  width: 1px;
+  height: 17px;
+  background: #eee4eb;
+  margin: 0 2px;
+}
+.vchat-reference-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 4px;
+  color: #a07790;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.vchat-duration-control {
+  position: relative;
+}
+.vchat-duration-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 9px;
+  color: #92798b;
+  border-radius: 7px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.vchat-duration-button:hover,
+.vchat-duration-button.is-open {
+  background: #f8f0f5;
+}
+.vchat-duration-popover {
+  position: absolute;
+  width: 238px;
+  left: -45px;
+  bottom: calc(100% + 14px);
+  padding: 17px 18px 14px;
+  background: #fff;
+  border: 1px solid #e7dce3;
+  border-radius: 12px;
+  box-shadow: 0 12px 38px #5a324d20;
+  z-index: 7;
+}
+.vchat-duration-popover:after {
+  content: "";
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-bottom: 1px solid #e7dce3;
+  border-right: 1px solid #e7dce3;
+  background: #fff;
+  transform: rotate(45deg);
+  bottom: -5px;
+  left: 72px;
+}
+.vchat-duration-popover > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  font-size: 12px;
+}
+.vchat-duration-popover strong {
+  font-weight: 550;
+  color: #7e6577;
+}
+.vchat-duration-popover b {
+  color: #c75c78;
+  font-weight: 600;
+}
+.vchat-duration-popover input {
+  width: 100%;
+  accent-color: #cd6686;
+  cursor: pointer;
+  margin: 0;
+  height: 5px;
+  display: block;
+}
+.vchat-duration-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+.vchat-duration-labels button {
+  font-size: 11px;
+  color: #b4a1ad;
+  padding: 4px 0;
+}
+.vchat-duration-labels button[aria-pressed="true"] {
+  color: #c65377;
+}
+.vchat-duration-popover p {
+  font-size: 10px;
+  color: #b7a5b1;
+  margin-top: 10px;
+}
+.vchat-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 15px;
+  min-height: 36px;
+  color: #fff;
+  border-radius: 10px;
+  background: #d04862;
+  font-size: 11px;
+  box-shadow: 0 3px 7px #cf49621b;
+  flex: 0 0 auto;
+}
+.vchat-send:disabled {
+  background: #e3c3cd;
+  opacity: 1;
+  box-shadow: none;
+}
+.vchat-send:hover:not(:disabled) {
+  background: #be3e56;
+  transform: translateY(-1px);
+}
+.vchat-composer-footer {
+  display: flex;
+  justify-content: space-between;
+  max-width: 1030px;
+  margin: 10px auto 0;
+  gap: 15px;
+  font-size: 9px;
+  color: #baabb5;
+  line-height: 1.5;
+}
+.vchat-file-input,
+.vchat-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.vchat-editing-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: #fcf4f7;
+  color: #af7691;
+  border-bottom: 1px solid #f2e5ec;
+  padding: 9px 15px;
+  font-size: 10px;
+  border-radius: 16px 16px 0 0;
+}
+.vchat-editing-note button {
+  margin-left: auto;
+  display: grid;
+  place-items: center;
+}
+.vchat-composer-references {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 15px 18px 0;
+}
+.vchat-reference {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border: 1px solid #e7dbe3;
+  border-radius: 8px;
+  background: #f8f1f6;
+}
+.vchat-reference img,
+.vchat-reference video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
+.vchat-reference-name {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 9px 5px 4px;
+  background: linear-gradient(transparent, #25142195);
+  color: #fff;
+  font-size: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 0 0 7px 7px;
+}
+.vchat-reference-remove {
+  position: absolute;
+  right: -5px;
+  top: -5px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: #98758b;
+  background: #fff;
+  border: 1px solid #e9dce4;
+  border-radius: 50%;
+}
+.vchat-audio-thumb {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: #bb8eaa;
+}
+.vchat-message-references {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 4px 0 12px;
+}
+.vchat-reference-compact {
+  width: 65px;
+  height: 65px;
+}
+.vchat-add-reference {
+  height: 76px;
+  width: 59px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed #dec7d6;
+  border-radius: 8px;
+  color: #c0a3b4;
+}
+.vchat-reference-loading {
+  height: 76px;
+  width: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #eee3e9;
+  border-radius: 8px;
+  color: #b393a7;
+  font-size: 9px;
+}
+.vchat-drop-overlay {
+  position: absolute;
+  inset: 0;
+  background: #fff5faf2;
+  border: 2px dashed #d49cb8;
+  color: #b16f95;
+  border-radius: 15px;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+  font-size: 14px;
+}
+.vchat-scroll-latest {
+  position: absolute;
+  top: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border: 1px solid #e5d6df;
+  border-radius: 20px;
+  background: #fff;
+  color: #ac859c;
+  box-shadow: 0 3px 12px #71425e10;
+  z-index: 3;
+  font-size: 11px;
+}
+.vchat-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 1030px;
+  margin: 9px auto 0;
+  color: #b88348;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.vchat-error > svg {
+  margin-top: 2px;
+}
+.vchat-error button {
+  margin-left: auto;
+}
+.vchat-spin {
+  animation: vchat-spin 0.9s linear infinite;
+}
+@keyframes vchat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes vchat-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+@media (min-width: 1600px) {
+  .vchat-header {
+    padding-left: 38px;
+    padding-right: 38px;
+  }
+  .vchat-feed-inner,
+  .vchat-composer {
+    max-width: 1160px;
+  }
+  .vchat-composer-footer {
+    max-width: 1150px;
+  }
+  .vchat-user-message {
+    max-width: 850px;
+  }
+  .vchat-result-card {
+    max-width: 730px;
+  }
+}
+@media (max-height: 800px) {
+  .vchat-empty {
+    padding-top: 25px;
+  }
+  .vchat-empty-emblem {
+    width: 52px;
+    height: 52px;
+    border-radius: 17px;
+    margin-bottom: 13px;
+  }
+  .vchat-empty h2 {
+    font-size: 27px;
+    margin-top: 8px;
+    line-height: 1.45;
+  }
+  .vchat-empty > p {
+    margin-top: 9px;
+  }
+  .vchat-inspirations {
+    margin-top: 21px;
+  }
+}
+@media (max-width: 900px) {
+  .vchat-header {
+    padding: 16px 20px 13px;
+  }
+  .vchat-feed {
+    padding: 0 20px;
+  }
+  .vchat-compose-area {
+    padding: 12px 20px 10px;
+  }
+  .vchat-header-meta {
+    gap: 9px;
+  }
+  .vchat-inspirations {
+    gap: 8px;
+  }
+  .vchat-inspirations > button {
+    padding: 14px 12px;
+  }
+  .vchat-inspirations span {
+    font-size: 9px;
+  }
+  .vchat-composer-footer > span:last-child {
+    display: none;
+  }
+}
+@media (max-width: 620px) {
+  .vchat-header {
+    padding: 13px 14px;
+    gap: 8px;
+  }
+  .vchat-header h1 {
+    font-size: 16px;
+    max-width: 46vw;
+  }
+  .vchat-header-icon {
+    height: 35px;
+    width: 35px;
+    border-radius: 10px;
+  }
+  .vchat-header p,
+  .vchat-save-state {
+    display: none;
+  }
+  .vchat-header-title {
+    gap: 8px;
+  }
+  .vchat-local-label {
+    font-size: 9px;
+  }
+  .vchat-feed {
+    padding: 0 14px;
+  }
+  .vchat-empty {
+    padding: 28px 0 24px;
+  }
+  .vchat-empty h2 {
+    font-size: 27px;
+  }
+  .vchat-empty > p {
+    font-size: 11px;
+  }
+  .vchat-inspirations {
+    grid-template-columns: 1fr;
+    margin-top: 24px;
+    gap: 7px;
+    max-width: 350px;
+  }
+  .vchat-inspirations > button {
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 2px 10px;
+    padding: 12px 14px;
+  }
+  .vchat-inspirations > button > svg:first-child {
+    grid-row: span 2;
+    align-self: center;
+    margin: 0;
+  }
+  .vchat-inspirations > button span {
+    font-size: 9px;
+  }
+  .vchat-inspirations > button > svg:last-child {
+    top: 21px;
+  }
+  .vchat-user-message {
+    padding: 13px 14px 10px;
+  }
+  .vchat-user-message > p {
+    font-size: 12px;
+  }
+  .vchat-assistant-message {
+    gap: 8px;
+  }
+  .vchat-assistant-avatar {
+    width: 27px;
+    height: 27px;
+    border-radius: 8px;
+  }
+  .vchat-assistant-heading {
+    gap: 8px;
+    min-height: 27px;
+  }
+  .vchat-assistant-copy {
+    font-size: 11px;
+  }
+  .vchat-result-actions {
+    padding: 9px;
+    gap: 5px;
+  }
+  .vchat-reuse {
+    font-size: 10px;
+    gap: 4px;
+    padding: 7px;
+  }
+  .vchat-result-info {
+    padding: 9px 10px 0;
+    font-size: 9px;
+  }
+  .vchat-result-info > span:last-child {
+    display: none;
+  }
+  .vchat-compose-area {
+    padding: 10px 12px 8px;
+  }
+  .vchat-composer textarea {
+    min-height: 84px;
+    padding: 14px 14px 7px;
+    font-size: 12px;
+  }
+  .vchat-composer-toolbar {
+    padding: 8px 9px 10px;
+    gap: 5px;
+  }
+  .vchat-composer-options {
+    gap: 2px;
+  }
+  .vchat-upload-button {
+    width: 29px;
+    height: 29px;
+  }
+  .vchat-toolbar-divider {
+    display: none;
+  }
+  .vchat-reference-mode {
+    font-size: 10px;
+    gap: 3px;
+    padding-left: 6px;
+  }
+  .vchat-reference-mode svg {
+    display: none;
+  }
+  .vchat-duration-button {
+    padding: 7px 4px;
+    font-size: 10px;
+    gap: 3px;
+  }
+  .vchat-duration-button > svg:first-child {
+    display: none;
+  }
+  .vchat-send {
+    padding: 9px 10px;
+    font-size: 10px;
+    gap: 3px;
+    min-height: 32px;
+  }
+  .vchat-send > svg {
+    width: 15px;
+  }
+  .vchat-composer-footer {
+    font-size: 8px;
+    margin-top: 7px;
+  }
+  .vchat-duration-popover {
+    left: auto;
+    right: -68px;
+  }
+  .vchat-duration-popover:after {
+    left: auto;
+    right: 84px;
+  }
+  .vchat-preparing {
+    padding: 13px;
+    gap: 10px;
+  }
+  .vchat-preparing-art {
+    width: 42px;
+    height: 50px;
+  }
+  .vchat-preparing strong {
+    font-size: 11px;
+  }
+  .vchat-preparing p {
+    font-size: 10px;
+  }
+  .vchat-preparing > svg {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vchat-feed {
+    scroll-behavior: auto;
+  }
+  .vchat-spin,
+  .vchat-preparing-art span {
+    animation: none;
+  }
+}
+
+/* Source material provides a concrete starting point for the conversation. */
+.vchat-reference-examples {
+  width: 100%;
+  max-width: 760px;
+  margin-top: 26px;
+}
+.vchat-examples-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #a3939e;
+  font-size: 10px;
+  margin: 0 2px 10px;
+}
+.vchat-examples-heading button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #ac6c88;
+  padding: 4px 0;
+}
+.vchat-reference-examples .vchat-inspirations {
+  margin-top: 0;
+  max-width: none;
+}
+.vchat-reference-examples .vchat-inspirations > button {
+  padding: 10px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.vchat-reference-examples .vchat-inspirations img {
+  width: 54px;
+  height: 54px;
+  object-fit: cover;
+  border: 1px solid #f1e7ed;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.vchat-reference-examples .vchat-inspirations > button > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.vchat-reference-examples .vchat-inspirations strong {
+  font-size: 11px;
+}
+.vchat-reference-examples .vchat-inspirations span {
+  font-size: 9px;
+}
+.vchat-reference-examples .vchat-inspirations > button > svg:last-child {
+  display: none;
+}
+.vchat-result-square {
+  max-width: 470px;
+}
+.vchat-result-square .vchat-video-wrap {
+  aspect-ratio: 1;
+}
+@media (min-width: 1600px) {
+  .vchat-result-square {
+    max-width: 520px;
+  }
+}
+@media (max-width: 900px) {
+  .vchat-reference-examples .vchat-inspirations > button {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .vchat-reference-examples .vchat-inspirations img {
+    width: 62px;
+    height: 62px;
+  }
+}
+@media (max-width: 620px) {
+  .vchat-reference-examples {
+    max-width: 350px;
+    margin-top: 22px;
+  }
+  .vchat-reference-examples .vchat-inspirations {
+    grid-template-columns: 1fr;
+  }
+  .vchat-reference-examples .vchat-inspirations > button {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    padding: 8px 10px;
+  }
+  .vchat-reference-examples .vchat-inspirations img {
+    width: 43px;
+    height: 43px;
+  }
+  .vchat-reference-examples .vchat-inspirations > button > svg:last-child {
+    display: block;
+    transform: none;
+    right: 13px;
+    top: 23px;
+  }
+  .vchat-reference-examples .vchat-inspirations span {
+    font-size: 9px;
+  }
+}
+
+/* Keep working text readable at normal desktop zoom. */
+.vchat-header p {
+  font-size: 12px;
+  color: #857682;
+}
+.vchat-empty > p {
+  font-size: 14px;
+  color: #8f7d89;
+}
+.vchat-examples-heading {
+  font-size: 12px;
+  color: #8f7a88;
+}
+.vchat-reference-examples .vchat-inspirations strong {
+  font-size: 13px;
+  color: #6d4f62;
+}
+.vchat-reference-examples .vchat-inspirations span {
+  font-size: 11px;
+  color: #998390;
+}
+.vchat-user-top {
+  font-size: 11px;
+  color: #9a7f8f;
+}
+.vchat-user-message > p {
+  font-size: 14px;
+  color: #5e4958;
+}
+.vchat-request-params {
+  font-size: 12px;
+  color: #9a7a8e;
+}
+.vchat-request-params button {
+  color: #94667f;
+}
+.vchat-assistant-heading strong {
+  font-size: 13px;
+  color: #685060;
+}
+.vchat-assistant-heading > span {
+  font-size: 11px;
+  color: #a08a98;
+}
+.vchat-assistant-copy {
+  font-size: 13px;
+  color: #917486;
+}
+.vchat-result-heading {
+  font-size: 12px;
+}
+.vchat-sample-label {
+  font-size: 10px;
+}
+.vchat-result-info {
+  font-size: 11px;
+  color: #9a8291;
+}
+.vchat-result-info > span:last-child {
+  color: #aa94a2;
+}
+.vchat-reuse {
+  font-size: 12px;
+  color: #995773;
+}
+.vchat-preparing strong,
+.vchat-interrupted strong {
+  font-size: 13px;
+}
+.vchat-preparing p,
+.vchat-interrupted p {
+  font-size: 12px;
+  color: #9b7e90;
+}
+.vchat-composer textarea {
+  font-size: 14px;
+  color: #604c5b;
+}
+.vchat-composer textarea::placeholder {
+  color: #a48e9d;
+}
+.vchat-reference-mode,
+.vchat-resolution-button,
+.vchat-duration-button {
+  font-size: 12px;
+  color: #8c627b;
+}
+.vchat-send {
+  font-size: 12px;
+}
+.vchat-composer-footer {
+  font-size: 11px;
+  color: #a08a98;
+}
+.vchat-editing-note {
+  font-size: 11px;
+  color: #9d617f;
+}
+.vchat-duration-labels button {
+  font-size: 12px;
+}
+.vchat-duration-popover p {
+  font-size: 11px;
+  color: #a18a99;
+}
+@media (max-width: 900px) {
+  .vchat-reference-examples .vchat-inspirations strong {
+    font-size: 12px;
+  }
+}
+@media (max-width: 620px) {
+  .vchat-empty > p {
+    font-size: 12px;
+  }
+  .vchat-reference-examples .vchat-inspirations strong {
+    font-size: 12px;
+  }
+  .vchat-reference-examples .vchat-inspirations span {
+    font-size: 10px;
+  }
+  .vchat-user-message > p {
+    font-size: 13px;
+  }
+  .vchat-request-params {
+    font-size: 10px;
+  }
+  .vchat-assistant-copy {
+    font-size: 12px;
+  }
+  .vchat-reuse {
+    font-size: 10px;
+  }
+  .vchat-result-info {
+    font-size: 10px;
+  }
+  .vchat-composer textarea {
+    font-size: 13px;
+  }
+  .vchat-reference-mode,
+  .vchat-resolution-button,
+  .vchat-duration-button,
+  .vchat-send {
+    font-size: 11px;
+  }
+  .vchat-composer-footer {
+    font-size: 9px;
+  }
+}
+/* A full result and its controls remain visible above the composer on laptop screens. */
+.vchat-result-square {
+  width: min(100%, max(296px, min(360px, 38vh)));
+  max-width: 100%;
+}
+.vchat-result-square .vchat-video-wrap {
+  height: min(360px, 38vh);
+  aspect-ratio: auto;
+}
+.vchat-result-square .vchat-video-wrap video {
+  object-fit: contain;
+}
+.vchat-result-square .vchat-result-actions {
+  padding: 9px 10px 10px;
+  gap: 6px;
+}
+.vchat-result-square .vchat-reuse {
+  font-size: 11px;
+  padding: 7px 8px;
+  gap: 5px;
+}
+.vchat-result-square .vchat-result-info {
+  padding-left: 11px;
+  padding-right: 11px;
+}
+.vchat-result-square .vchat-result-info > span:last-child {
+  display: none;
+}
+@media (max-width: 620px) {
+  .vchat-result-square {
+    width: min(100%, max(260px, min(340px, 38vh)));
+  }
+  .vchat-result-square .vchat-reuse {
+    font-size: 10px;
+    padding: 7px 6px;
+  }
+}
+
+/* Resolution uses the same soft rose treatment as the duration control. */
+.vchat-resolution-control {
+  position: relative;
+  margin-left: 3px;
+}
+.vchat-resolution-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: #8c627b;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.vchat-resolution-button:hover,
+.vchat-resolution-button.is-open {
+  background: #f8edf3;
+  color: #b65779;
+}
+.vchat-resolution-button > svg {
+  color: #ad8c9f;
+  transition: transform 0.18s;
+}
+.vchat-resolution-button.is-open > svg {
+  transform: rotate(180deg);
+}
+.vchat-resolution-popover {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  left: -26px;
+  z-index: 8;
+  width: 206px;
+  padding: 8px;
+  background: #fff;
+  border: 1px solid #e7dce3;
+  border-radius: 13px;
+  box-shadow: 0 12px 38px #5a324d20;
+}
+.vchat-resolution-popover::after {
+  content: "";
+  position: absolute;
+  bottom: -5px;
+  left: 52px;
+  width: 9px;
+  height: 9px;
+  transform: rotate(45deg);
+  background: #fff;
+  border-right: 1px solid #e7dce3;
+  border-bottom: 1px solid #e7dce3;
+}
+.vchat-resolution-heading {
+  padding: 7px 10px 10px;
+  font-size: 11px;
+  font-weight: 550;
+  color: #9b8493;
+}
+.vchat-resolution-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 47px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  color: #7d6274;
+  text-align: left;
+}
+.vchat-resolution-option + .vchat-resolution-option {
+  margin-top: 3px;
+}
+.vchat-resolution-option > span {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+}
+.vchat-resolution-option strong {
+  font-size: 13px;
+  font-weight: 550;
+  min-width: 43px;
+}
+.vchat-resolution-option small {
+  font-size: 11px;
+  color: #a48b9b;
+}
+.vchat-resolution-option:hover,
+.vchat-resolution-option:focus-visible {
+  background: #fbf4f8;
+  outline: none;
+  box-shadow: inset 0 0 0 1px #ecd6e2;
+}
+.vchat-resolution-option[aria-selected="true"] {
+  color: #b94c75;
+  background: #f8eaf1;
+}
+.vchat-resolution-option[aria-selected="true"] small {
+  color: #ae7891;
+}
+.vchat-resolution-option[aria-selected="true"] > svg {
+  color: #c85e83;
+}
+@media (max-width: 620px) {
+  .vchat-resolution-control {
+    margin-left: 0;
+  }
+  .vchat-resolution-button {
+    font-size: 11px;
+    gap: 4px;
+    padding: 7px 6px;
+  }
+  .vchat-resolution-popover {
+    left: -64px;
+    width: 196px;
+  }
+  .vchat-resolution-popover::after {
+    left: 88px;
+  }
+}
+
+/* Keep confirmation and the finished video central to the conversation. */
+.vchat-empty {
+  padding: clamp(18px, 3vh, 32px) 0 24px;
+}
+.vchat-empty h2 {
+  font-size: clamp(24px, 2.3vw, 32px);
+  line-height: 1.45;
+}
+.vchat-composer.is-waiting textarea {
+  min-height: 52px;
+  height: 52px;
+  resize: none;
+}
+.vchat-confirmed-answer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+  padding: 11px 14px;
+  width: fit-content;
+  border: 1px solid #eadde5;
+  border-radius: 10px 10px 3px 10px;
+  background: #f5eef2;
+  color: #806075;
+  font-size: 12px;
+}
+.vchat-confirmed-answer > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #9c7d90;
+  font-size: 11px;
+}
+.vchat-confirmed-answer > p {
+  margin: 0;
+  line-height: 1.5;
+}
+.vchat-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.vchat-footer-actions > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #9a8190;
+  padding: 3px 0 3px 5px;
+  border-radius: 4px;
+}
+.vchat-footer-actions > button:hover:not(:disabled) {
+  color: #af5c7d;
+}
+.vchat-footer-actions > button:disabled {
+  opacity: 0.45;
+}
+@media (max-width: 900px) {
+  .vchat-footer-actions > span {
+    display: none;
+  }
+}
+@media (max-width: 620px) {
+  .vchat-empty-emblem {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 12px;
+  }
+  .vchat-empty h2 {
+    font-size: 24px;
+  }
+  .vchat-empty > p {
+    font-size: 11px;
+  }
+  .vchat-composer-footer {
+    gap: 8px;
+  }
+  .vchat-footer-actions {
+    flex-shrink: 0;
+  }
+}
