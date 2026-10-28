@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   ArrowDown,
@@ -52,6 +52,8 @@ import type { ProductKind } from "./content";
 import AssetLibrary from "./components/AssetLibrary";
 import WorkflowMap from "./components/WorkflowMap";
 import LiteratureStudio from "./components/LiteratureWorkspace";
+import ArticleWorkspace from "./components/ArticleWorkspace";
+import type { ArticleDraft } from "./lib/articleWorkspace";
 import VideoChatStudio from "./components/VideoChatStudio";
 import VideoResults from "./components/VideoResults";
 import VideoWorkflow from "./components/VideoWorkflow";
@@ -80,8 +82,9 @@ type Project = {
   confirmedAssets?: string;
   revisionAssets?: string;
   videoVersionId?: string;
+  articleWorkflow?: "upload-v1";
 };
-type Page = "home" | "studio" | "literature" | "assets" | "brand";
+type Page = "home" | "studio" | "article" | "literature" | "assets" | "brand";
 type HomeKind = ProductKind | "literature";
 type Modal = "assets" | "help" | "reset" | "preview" | null;
 const STORAGE = "lilly-studio-projects-v1";
@@ -219,9 +222,11 @@ export default function App() {
   const [page, setPage] = useState<Page>(() =>
     new URLSearchParams(window.location.search).get("page") === "literature"
       ? "literature"
-      : new URLSearchParams(window.location.search).get("page") === "video"
-        ? "studio"
-        : "home",
+      : new URLSearchParams(window.location.search).get("page") === "article"
+        ? "article"
+        : new URLSearchParams(window.location.search).get("page") === "video"
+          ? "studio"
+          : "home",
   );
   const [tab, setTab] = useState<"chat" | "flow" | "records">("chat");
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -234,6 +239,15 @@ export default function App() {
   const [homeKind, setHomeKind] = useState<HomeKind>("video");
   const [literatureInput, setLiteratureInput] = useState<string | undefined>();
   const [literatureEntry, setLiteratureEntry] = useState(0);
+  const [articleEntry, setArticleEntry] = useState(0);
+  const [articleBrief, setArticleBrief] = useState("");
+  const [articleDraftId, setArticleDraftId] = useState<string | undefined>(
+    () =>
+      new URLSearchParams(window.location.search).get("page") === "article"
+        ? new URLSearchParams(window.location.search).get("project") ||
+          undefined
+        : undefined,
+  );
   const [selectedPoster, setSelectedPoster] = useState(0);
   const [previewVideoId, setPreviewVideoId] = useState<string>(
     videoVersions[0].id,
@@ -259,7 +273,9 @@ export default function App() {
   const conversationRef = useRef<HTMLDivElement>(null);
   const active = projects.find((p) => p.id === activeId);
   const focusedWorkspace =
-    page === "literature" || (page === "studio" && active?.kind === "video");
+    page === "literature" ||
+    page === "article" ||
+    (page === "studio" && active?.kind === "video");
   const info = active ? productInfo[active.kind] : productInfo.article;
   const shownStage = inspectedStage ?? active?.stage ?? 0;
   const busy = !!active && [0, 1, 4].includes(active.stage);
@@ -307,6 +323,7 @@ export default function App() {
       setProjects((all) =>
         all.map((p) =>
           p.kind === "article" &&
+          p.articleWorkflow !== "upload-v1" &&
           p.stage === 6 &&
           p.confirmedAssets !== signatureFor(p.kind, next, videoIdFor(p))
             ? {
@@ -357,7 +374,12 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
   useEffect(() => {
-    if (!active || active.kind === "video" || ![0, 1, 4].includes(active.stage))
+    if (
+      page !== "studio" ||
+      !active ||
+      active.kind === "video" ||
+      ![0, 1, 4].includes(active.stage)
+    )
       return;
     const id = active.id,
       stage = active.stage;
@@ -378,7 +400,7 @@ export default function App() {
       stage === 4 ? 2200 : 1100,
     );
     return () => clearTimeout(timer);
-  }, [active?.id, active?.stage]);
+  }, [page, active?.id, active?.stage]);
   useEffect(() => {
     setInspectedStage(null);
   }, [active?.id, active?.stage]);
@@ -449,6 +471,10 @@ export default function App() {
     if (page === "literature") {
       url.searchParams.set("page", "literature");
       url.searchParams.delete("project");
+    } else if (page === "article") {
+      url.searchParams.set("page", "article");
+      if (articleDraftId) url.searchParams.set("project", articleDraftId);
+      else url.searchParams.delete("project");
     } else if (page === "studio" && active?.kind === "video") {
       url.searchParams.set("page", "video");
       url.searchParams.set("project", active.id);
@@ -457,23 +483,63 @@ export default function App() {
       url.searchParams.delete("project");
     }
     window.history.replaceState(null, "", url);
-  }, [page, active?.id]);
+  }, [page, active?.id, articleDraftId]);
+  function openArticle(brief = "") {
+    setArticleEntry((entry) => entry + 1);
+    setArticleBrief(brief);
+    setArticleDraftId(undefined);
+    setActiveId(null);
+    setPage("article");
+    setInput("");
+  }
+  const articleResultReady = useCallback((draft: ArticleDraft) => {
+    setArticleDraftId(draft.id);
+    setActiveId(draft.id);
+  }, []);
+  const rememberArticle = useCallback((draft: ArticleDraft) => {
+    setProjects((all) => {
+      const existing = all.find((project) => project.id === draft.id);
+      const title = draft.input.title.trim() || "新的图文创作";
+      if (
+        existing?.title === title &&
+        existing.prompt === draft.input.brief
+      )
+        return all;
+      const summary: Project = {
+        id: draft.id,
+        kind: "article",
+        articleWorkflow: "upload-v1",
+        title,
+        prompt: draft.input.brief,
+        stage: 6,
+        completed: [0, 1, 2, 3, 4, 5, 6],
+        concept: null,
+        layout: null,
+        version: 1,
+        decisions: [],
+        feedback: [],
+        createdAt: new Date(draft.createdAt).toISOString(),
+      };
+      return existing
+        ? all.map((project) => (project.id === draft.id ? summary : project))
+        : [summary, ...all];
+    });
+  }, []);
   function start(kind: ProductKind, prompt?: string, videoVersionId?: string) {
+    if (kind === "article") {
+      openArticle(prompt);
+      return;
+    }
     const videoVersion = videoVersions.find((v) => v.id === videoVersionId);
     const p: Project = {
       id: crypto.randomUUID(),
       kind,
-      title:
-        kind === "article"
-          ? "礼医 · 医生服务系列创作"
-          : prompt?.trim().slice(0, 22) || "新的视频创作",
-      prompt:
-        prompt?.trim() || (kind === "video" ? "" : productInfo[kind].starter),
+      title: prompt?.trim().slice(0, 22) || "新的视频创作",
+      prompt: prompt?.trim() || "",
       stage: 0,
       completed: [],
       concept: videoVersion?.conceptId || null,
-      videoVersionId:
-        kind === "video" ? videoVersion?.id || videoVersions[0].id : undefined,
+      videoVersionId: videoVersion?.id || videoVersions[0].id,
       layout: null,
       version: 1,
       decisions: [],
@@ -490,6 +556,14 @@ export default function App() {
     setFocusPreview(false);
   }
   function openProject(p: Project) {
+    if (p.kind === "article" && p.articleWorkflow === "upload-v1") {
+      setArticleEntry((entry) => entry + 1);
+      setArticleBrief("");
+      setArticleDraftId(p.id);
+      setActiveId(p.id);
+      setPage("article");
+      return;
+    }
     setActiveId(p.id);
     setPage("studio");
     setTab("chat");
@@ -715,6 +789,10 @@ export default function App() {
     } else start(homeKind, input);
   }
   const switchProduct = (kind: ProductKind) => {
+    if (kind === "article") {
+      openArticle();
+      return;
+    }
     const previous = projects.find((p) => p.kind === kind);
     if (previous) openProject(previous);
     else start(kind);
@@ -1400,7 +1478,9 @@ export default function App() {
           aria-label="开启新创作"
           title="开启新创作"
           onClick={() => {
-            if (page === "studio" && active?.kind === "video") start("video");
+            if (page === "article") openArticle();
+            else if (page === "studio" && active?.kind === "video")
+              start("video");
             else {
               setPage("home");
               setActiveId(null);
@@ -1425,7 +1505,10 @@ export default function App() {
           </button>
           <button
             className={
-              page === "studio" && active?.kind === "article" ? "active" : ""
+              page === "article" ||
+              (page === "studio" && active?.kind === "article")
+                ? "active"
+                : ""
             }
             aria-label="图文创作"
             title="图文创作"
@@ -1901,6 +1984,17 @@ export default function App() {
               <span>本地交互演示 · 创作内容保存在此浏览器</span>
             </footer>
           </div>
+        )}
+        {page === "article" && (
+          <ArticleWorkspace
+            key={articleEntry}
+            draftId={articleDraftId}
+            initialBrief={articleBrief}
+            assets={assets}
+            onResultReady={articleResultReady}
+            onSaved={rememberArticle}
+            onNew={() => openArticle()}
+          />
         )}
         {page === "literature" && (
           <LiteratureStudio
