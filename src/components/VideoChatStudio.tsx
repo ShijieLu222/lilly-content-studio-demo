@@ -37,6 +37,13 @@ import {
   type VideoResolution,
 } from "../lib/videoChatStore";
 import { VideoDemoProgress, VideoDemoQuestions } from "./VideoDemoProcess";
+import {
+  VIDEO_DEMO_DURATION,
+  VIDEO_DEMO_RESOLUTION,
+  VIDEO_DEMO_PROMPT as groupPrompt,
+  initialVideoPrompt,
+  upgradeVideoDemoDraft,
+} from "../lib/videoChatPreset";
 import "./VideoChatStudio.css";
 
 interface Props {
@@ -85,8 +92,6 @@ const resolutionOptions: { value: VideoResolution; label: string }[] = [
   { value: "720p", label: "标准清晰度" },
   { value: "1080p", label: "高清细节" },
 ];
-const groupPrompt =
-  "请基于这三张参考图，制作一支 8 秒的肥胖诊疗路径主题视频。依次呈现主题封面、诊疗数据、指南探索页面，延续红粉色视觉，用流畅转场和轻微镜头推进让画面动起来，配合轻快、专业的背景音乐。完整保留原图的文字、数据、品牌标志与引用，不新增医学结论。";
 
 async function loadDemoReferences(): Promise<VideoChatReference[]> {
   return Promise.all(
@@ -109,9 +114,9 @@ async function loadDemoReferences(): Promise<VideoChatReference[]> {
 function sampleFor(turn: VideoChatTurn) {
   if (turn.sample === "client-final")
     return {
-      src: "/assets/videos/client-demo-final.mp4",
-      poster: "/assets/videos/client-demo-final-poster.jpg",
-      meta: "8.06 秒 · 960 × 960 · 含配乐",
+      src: "/assets/videos/client-demo-final.mp4?v=fbc7f0ff",
+      poster: "/assets/videos/client-demo-final-poster.jpg?v=fbc7f0ff",
+      meta: "10.10 秒 · 1080 × 1080 · 含音频",
       square: true,
     };
   if (turn.sample !== "reference-demo")
@@ -255,7 +260,13 @@ function ResultVideo({
         <span>
           {isFinal ? "成片实际规格" : "示例实际规格"}：{sample.meta}
         </span>
-        <span>{sample.square ? "参考图预置动效" : "原始素材"}</span>
+        <span>
+          {isFinal
+            ? "用户提供成片"
+            : sample.square
+              ? "参考图预置动效"
+              : "原始素材"}
+        </span>
       </div>
       <div className="vchat-result-actions">
         <button type="button" className="vchat-reuse" onClick={onReuse}>
@@ -309,8 +320,10 @@ export default function VideoChatStudio({
   const [turns, setTurns] = useState<VideoChatTurn[]>([]);
   const [prompt, setPrompt] = useState("");
   const [references, setReferences] = useState<VideoChatReference[]>([]);
-  const [resolution, setResolution] = useState<VideoResolution>("720p");
-  const [duration, setDuration] = useState<VideoDuration>(8);
+  const [resolution, setResolution] = useState<VideoResolution>(
+    VIDEO_DEMO_RESOLUTION,
+  );
+  const [duration, setDuration] = useState<VideoDuration>(VIDEO_DEMO_DURATION);
   const [sourceTurnId, setSourceTurnId] = useState<string>();
   const [durationOpen, setDurationOpen] = useState(false);
   const [resolutionOpen, setResolutionOpen] = useState(false);
@@ -374,31 +387,15 @@ export default function VideoChatStudio({
         );
       }
       if (cancelled) return;
-      let startingReferences: VideoChatReference[] = [];
-      if (!conversation) {
-        try {
-          startingReferences = await loadDemoReferences();
-        } catch (reason) {
-          if (!cancelled)
-            setError(
-              reason instanceof Error
-                ? reason.message
-                : "参考图载入失败，可在右下角重新载入演示。",
-            );
-        }
-      }
-      if (cancelled) return;
       setTurns(conversation?.turns || []);
       setPrompt(
         conversation
           ? conversation.draft.prompt
-          : initialPrompt?.trim() || groupPrompt,
+          : initialVideoPrompt(initialPrompt),
       );
-      setReferences(
-        conversation ? conversation.draft.references : startingReferences,
-      );
-      setResolution(conversation?.draft.resolution || "720p");
-      setDuration(conversation?.draft.duration || 8);
+      setReferences(conversation?.draft.references || []);
+      setResolution(conversation?.draft.resolution || VIDEO_DEMO_RESOLUTION);
+      setDuration(conversation?.draft.duration || VIDEO_DEMO_DURATION);
       setSourceTurnId(conversation?.draft.sourceTurnId);
       setLoadedProjectId(projectId);
     }
@@ -584,8 +581,8 @@ export default function VideoChatStudio({
       if (projectRef.current !== requestedProject) return;
       setReferences(values);
       setPrompt(groupPrompt);
-      setDuration(8);
-      setResolution("720p");
+      setDuration(VIDEO_DEMO_DURATION);
+      setResolution(VIDEO_DEMO_RESOLUTION);
       setSourceTurnId(undefined);
       inputRef.current?.focus();
     } catch (reason) {
@@ -659,10 +656,16 @@ export default function VideoChatStudio({
     setSourceTurnId(undefined);
   }
   function reuse(turn: VideoChatTurn) {
-    setPrompt(turn.prompt);
-    setReferences(turn.references.map((reference) => ({ ...reference })));
-    setResolution(turn.resolution);
-    setDuration(turn.duration);
+    const draft = upgradeVideoDemoDraft({
+      prompt: turn.prompt,
+      references: turn.references,
+      resolution: turn.resolution,
+      duration: turn.duration,
+    });
+    setPrompt(draft.prompt);
+    setReferences(draft.references.map((reference) => ({ ...reference })));
+    setResolution(draft.resolution);
+    setDuration(draft.duration);
     setSourceTurnId(turn.id);
     setError("");
     setDurationOpen(false);
@@ -670,8 +673,8 @@ export default function VideoChatStudio({
     requestAnimationFrame(() => {
       inputRef.current?.focus();
       inputRef.current?.setSelectionRange(
-        turn.prompt.length,
-        turn.prompt.length,
+        draft.prompt.length,
+        draft.prompt.length,
       );
     });
   }
@@ -744,7 +747,7 @@ export default function VideoChatStudio({
                 从一句想法开始。
               </h2>
               <p>
-                参考图与提示词已放入下方输入框，可以直接发送。
+                描述你的创作想法，或点击右下角“载入演示”体验。
                 <br />
                 一起确认创作方向，再让画面动起来。
               </p>
@@ -1215,7 +1218,7 @@ export default function VideoChatStudio({
             <button
               type="button"
               disabled={!ready || pending || uploading}
-              title="将三张参考图和提示词重新放入输入框，保留所有历史结果"
+              title="将三张参考图和演示提示词填入输入框，保留所有历史结果"
               onClick={() => void usePocReferences()}
             >
               <RotateCcw size={11} /> 载入演示

@@ -1,0 +1,252 @@
+.pa-context-menu {
+  position: fixed;
+  z-index: 1000;
+  width: 196px;
+  max-width: calc(100vw - 16px);
+  padding: 6px;
+  border: 1px solid #e9dfe5;
+  border-radius: 11px;
+  background: #fff;
+  box-shadow:
+    0 12px 36px #57404e24,
+    0 2px 7px #57404e0c;
+}
+.pa-context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 7px;
+  color: #b3465b;
+  font-size: 13px;
+  text-align: left;
+}
+.pa-context-menu button:hover,
+.pa-context-menu button:focus-visible {
+  background: #fff0f3;
+  outline: none;
+}
+.pa-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(460px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  margin: auto;
+  padding: 30px;
+  overflow: auto;
+  color: #463b45;
+  background: #fffdfd;
+  border: 1px solid #ede1e7;
+  border-radius: 19px;
+  box-shadow: 0 24px 90px #3e2b4430;
+}
+.pa-dialog::backdrop {
+  background: #30253552;
+  backdrop-filter: blur(3px);
+}
+.pa-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: #9a8794;
+}
+.pa-close:hover {
+  background: #f7edf2;
+  color: #5d4858;
+}
+.pa-dialog-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  background: #fbedf1;
+  color: #b95670;
+  flex-shrink: 0;
+}
+.pa-delete-dialog h2 {
+  margin-top: 20px;
+}
+.pa-dialog h2 {
+  font-size: 21px;
+  line-height: 1.5;
+  font-weight: 650;
+  letter-spacing: -0.4px;
+}
+.pa-dialog p {
+  color: #8b7885;
+  font-size: 13px;
+  line-height: 1.85;
+}
+.pa-dialog .pa-project-name {
+  margin: 12px 0 10px;
+  padding: 12px 14px;
+  color: #655160;
+  background: #faf4f7;
+  border: 1px solid #eee4e9;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.pa-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 25px;
+}
+.pa-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 37px;
+  padding: 8px 15px;
+  color: #7c6374;
+  background: #fff;
+  border: 1px solid #e7dce3;
+  border-radius: 8px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.pa-button:hover {
+  background: #faf1f5;
+  border-color: #d9b5c6;
+}
+.pa-button.pa-danger {
+  color: #fff;
+  background: #b94e68;
+  border-color: #b94e68;
+}
+.pa-button.pa-danger:hover {
+  background: #a93f59;
+}
+.pa-dialog .pa-error,
+.pa-dialog .pa-restored {
+  margin: 15px 0 0;
+  padding: 10px 12px;
+  border-radius: 7px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+.pa-dialog .pa-error {
+  color: #a7435d;
+  background: #fff0f3;
+  border: 1px solid #f0cfd9;
+}
+.pa-dialog .pa-restored {
+  color: #557b65;
+  background: #f0f7f2;
+  border: 1px solid #dcebdd;
+}
+.pa-trash-dialog {
+  width: min(620px, calc(100vw - 32px));
+}
+.pa-trash-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-right: 22px;
+}
+.pa-trash-heading p {
+  margin-top: 3px;
+  font-size: 12px;
+}
+.pa-trash-list {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+  max-height: min(400px, 50dvh);
+  overflow: auto;
+}
+.pa-trash-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 1px;
+  border-bottom: 1px solid #eee5eb;
+}
+.pa-project-icon {
+  display: grid;
+  place-items: center;
+  width: 39px;
+  height: 42px;
+  border-radius: 10px;
+  color: #b76b84;
+  background: #faedf2;
+  flex-shrink: 0;
+}
+.pa-project-icon.video {
+  color: #9b80b6;
+  background: #f3eef9;
+}
+.pa-trash-list li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+.pa-trash-list strong {
+  color: #64515f;
+  font-size: 13px;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pa-trash-list li > div > span {
+  color: #a1919b;
+  font-size: 11px;
+}
+.pa-trash-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 50px 10px 40px;
+  color: #c0a9b9;
+}
+.pa-trash-empty h3 {
+  margin-top: 4px;
+  color: #806a7c;
+  font-size: 15px;
+  font-weight: 550;
+}
+.pa-trash-empty p {
+  font-size: 12px;
+}
+.pa-trash-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  color: #a18d9a;
+  font-size: 12px;
+}
+@media (max-width: 520px) {
+  .pa-dialog {
+    padding: 25px 20px;
+  }
+  .pa-trash-heading {
+    gap: 10px;
+  }
+  .pa-trash-heading .pa-dialog-icon {
+    width: 40px;
+    height: 40px;
+  }
+  .pa-trash-list li {
+    gap: 8px;
+  }
+  .pa-trash-list .pa-button {
+    padding: 8px 10px;
+  }
+}

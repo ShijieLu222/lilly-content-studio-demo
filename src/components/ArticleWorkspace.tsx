@@ -12,11 +12,13 @@ import {
   type ArticleDraft,
 } from "../lib/articleWorkspace";
 import { assetSlots, type Asset } from "../lib/assets";
+import { isProjectDeleted } from "../lib/projectTrash";
 
 export default function ArticleWorkspace({
   draftId,
   initialBrief,
   assets,
+  deletedProjectIds,
   onResultReady,
   onSaved,
   onNew,
@@ -24,6 +26,7 @@ export default function ArticleWorkspace({
   draftId?: string;
   initialBrief?: string;
   assets: Asset[];
+  deletedProjectIds: string[];
   onResultReady: (draft: ArticleDraft) => void;
   onSaved: (draft: ArticleDraft) => void;
   onNew: () => void;
@@ -74,13 +77,6 @@ export default function ArticleWorkspace({
   useEffect(() => {
     alive.current = true;
     const initialRun = run.current;
-    loadArticleDraft()
-      .then((saved) => {
-        if (alive.current) setLatest((current) => current ?? saved);
-      })
-      .catch(() => {
-        if (alive.current) setNotice("暂时无法读取上次作品，可以继续新建。");
-      });
     if (draftId) {
       loadArticleDraft(draftId)
         .then((saved) => {
@@ -111,6 +107,20 @@ export default function ArticleWorkspace({
       run.current++;
     };
   }, []);
+
+  useEffect(() => {
+    let current = true;
+    loadArticleDraft()
+      .then((saved) => {
+        if (current) setLatest(saved);
+      })
+      .catch(() => {
+        if (current) setNotice("暂时无法读取上次作品，可以继续新建。");
+      });
+    return () => {
+      current = false;
+    };
+  }, [deletedProjectIds]);
 
   useEffect(() => {
     let current = true;
@@ -182,7 +192,7 @@ export default function ArticleWorkspace({
   }, [phase, step, prepared]);
 
   function resume() {
-    if (!latest) return;
+    if (!latest || isProjectDeleted(latest.id)) return;
     run.current++;
     activeDraft.current = latest;
     setDraft(latest);
@@ -238,7 +248,9 @@ export default function ArticleWorkspace({
             initialBrief={initialBrief}
             initialInput={seed}
             onStart={start}
-            onResume={latest ? resume : undefined}
+            onResume={
+              latest && !isProjectDeleted(latest.id) ? resume : undefined
+            }
             resumeLabel={latest?.input.title.trim() || "新的图文创作"}
             exampleImages={exampleImages}
           />

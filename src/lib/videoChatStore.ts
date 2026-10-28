@@ -1,3 +1,10 @@
+import { isProjectDeleted } from "./projectTrash";
+import {
+  VIDEO_DEMO_DURATION,
+  VIDEO_DEMO_RESOLUTION,
+  upgradeVideoDemoDraft,
+} from "./videoChatPreset";
+
 export type VideoResolution = "360p" | "720p" | "1080p";
 export type VideoDuration = 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15;
 
@@ -135,7 +142,9 @@ function validTurn(value: unknown): value is VideoChatTurn {
 export async function loadVideoConversation(
   projectId: string,
 ): Promise<VideoChatConversation | undefined> {
+  if (isProjectDeleted(projectId)) return undefined;
   const database = await openDatabase();
+  if (isProjectDeleted(projectId)) return undefined;
   return new Promise((resolve, reject) => {
     const request = database
       .transaction(STORE, "readonly")
@@ -143,6 +152,7 @@ export async function loadVideoConversation(
       .get(projectId);
     request.onerror = () => reject(request.error);
     request.onsuccess = () => {
+      if (isProjectDeleted(projectId)) return resolve(undefined);
       const value = request.result as VideoChatConversation | undefined;
       if (!value || !Array.isArray(value.turns)) return resolve(undefined);
       const draft = value.draft;
@@ -150,20 +160,22 @@ export async function loadVideoConversation(
         projectId,
         // The conversation component resumes timed demo phases after a reload.
         turns: value.turns.filter(validTurn),
-        draft: {
+        draft: upgradeVideoDemoDraft({
           prompt: typeof draft?.prompt === "string" ? draft.prompt : "",
           references: Array.isArray(draft?.references)
             ? draft.references.filter(validReference)
             : [],
           resolution: ["360p", "720p", "1080p"].includes(draft?.resolution)
             ? draft.resolution
-            : "720p",
-          duration: isVideoDuration(draft?.duration) ? draft.duration : 5,
+            : VIDEO_DEMO_RESOLUTION,
+          duration: isVideoDuration(draft?.duration)
+            ? draft.duration
+            : VIDEO_DEMO_DURATION,
           sourceTurnId:
             typeof draft?.sourceTurnId === "string"
               ? draft.sourceTurnId
               : undefined,
-        },
+        }),
         updatedAt: value.updatedAt,
       });
     };
@@ -173,7 +185,11 @@ export async function loadVideoConversation(
 export async function saveVideoConversation(
   value: VideoChatConversation,
 ): Promise<void> {
+  if (isProjectDeleted(value.projectId))
+    throw new Error("此创作已删除，请先恢复后再编辑。");
   const database = await openDatabase();
+  if (isProjectDeleted(value.projectId))
+    throw new Error("此创作已删除，请先恢复后再编辑。");
   return new Promise((resolve, reject) => {
     const transaction = database.transaction(STORE, "readwrite");
     transaction.objectStore(STORE).put(value);

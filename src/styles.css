@@ -287,6 +287,91 @@ p {
   color: #b4aab2;
   padding: 8px 12px;
 }
+.recent-project-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 3px;
+  border-radius: 9px;
+  color: #807580;
+}
+.recent-project-row:hover,
+.recent-project-row:focus-within,
+.recent-project-row.selected {
+  color: #b44a54;
+  background: #f7eef2;
+}
+.recent-project-open {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 9px;
+  padding: 12px 0 12px 11px;
+  text-align: left;
+  font-size: 12px;
+  color: inherit;
+  border-radius: 8px;
+}
+.recent-project-open > svg,
+.recent-project-open > .tiny-dot {
+  flex-shrink: 0;
+}
+.recent-project-open > span:not(.tiny-dot) {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.recent-project-more {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 30px;
+  flex-shrink: 0;
+  color: #a898a4;
+  border-radius: 6px;
+}
+.recent-project-more:hover {
+  background: #eadce3;
+  color: #a4405c;
+}
+.history-trash {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 10px 12px;
+  margin-top: 7px;
+  color: #968994;
+  font-size: 11px;
+  border-radius: 7px;
+}
+.history-trash > span {
+  margin-left: auto;
+}
+.history-trash:hover {
+  color: #ac4866;
+  background: #f8f1f4;
+}
+.recent-project-open:focus-visible,
+.recent-project-more:focus-visible,
+.history-trash:focus-visible {
+  outline: 2px solid #b65a78;
+  outline-offset: -2px;
+}
+.sidebar-collapsed .history-trash {
+  display: none;
+}
+@media (max-width: 1000px) {
+  .shared-sidebar .history-trash {
+    display: none;
+  }
+}
+@media (max-width: 800px) {
+  .history-trash {
+    display: none;
+  }
+}
 .sidebar-bottom {
   margin-top: auto;
   padding-top: 20px;
@@ -5014,7 +5099,7 @@ p {
   }
 }
 
-/* The editing workspaces use the whole viewport, without the utility masthead. */
+/* Shared navigation stays identical across the dashboard and workspaces. */
 .new-project .new-project-label {
   margin-left: 0;
   color: inherit;
@@ -5025,61 +5110,64 @@ p {
   min-height: 0;
   overflow: hidden;
 }
-.focused-workspace > .sidebar {
+.shared-sidebar > .sidebar {
   width: 208px;
   padding: 22px 12px 0;
 }
-.focused-workspace > .sidebar .sidebar-brand {
+.shared-sidebar > .sidebar .sidebar-brand {
   margin-bottom: 25px;
 }
-.focused-workspace > .sidebar nav > button {
+.shared-sidebar > .sidebar nav > button {
   gap: 9px;
   padding: 11px 10px;
 }
-.focused-workspace > .sidebar .nav-new {
+.shared-sidebar > .sidebar .nav-new {
   display: none;
 }
-.focused-workspace > .main {
+.shared-sidebar > .main {
   margin-left: 208px;
   width: calc(100% - 208px);
+}
+/* Editors own their viewport; the dashboard keeps its normal page scrolling. */
+.focused-workspace > .main {
   height: 100dvh;
   min-width: 0;
   overflow: hidden;
   background: #f8f8fa;
 }
-.focused-workspace.sidebar-collapsed > .sidebar {
+.shared-sidebar.sidebar-collapsed > .sidebar {
   display: flex;
   width: 60px;
   padding: 19px 8px 0;
 }
-.focused-workspace.sidebar-collapsed > .main {
+.shared-sidebar.sidebar-collapsed > .main {
   margin-left: 60px;
   width: calc(100% - 60px);
 }
-.focused-workspace.sidebar-collapsed .sidebar-brand {
+.shared-sidebar.sidebar-collapsed .sidebar-brand {
   flex-direction: column;
   gap: 20px;
   padding: 0;
   margin-bottom: 17px;
 }
-.focused-workspace.sidebar-collapsed .sidebar-brand .brand-official {
+.shared-sidebar.sidebar-collapsed .sidebar-brand .brand-official {
   padding-left: 0;
 }
-.focused-workspace.sidebar-collapsed .brand-official img {
+.shared-sidebar.sidebar-collapsed .brand-official img {
   width: 38px;
 }
-.focused-workspace.sidebar-collapsed .sidebar-brand > .icon-button {
+.shared-sidebar.sidebar-collapsed .sidebar-brand > .icon-button {
   display: inline-flex;
   width: 34px;
 }
-.focused-workspace.sidebar-collapsed .nav-label,
-.focused-workspace.sidebar-collapsed .history-list,
-.focused-workspace.sidebar-collapsed .sidebar-divider,
-.focused-workspace.sidebar-collapsed .sidebar-bottom,
-.focused-workspace.sidebar-collapsed .new-project > span {
+.shared-sidebar.sidebar-collapsed .nav-label,
+.shared-sidebar.sidebar-collapsed .history-list,
+.shared-sidebar.sidebar-collapsed .sidebar-divider,
+.shared-sidebar.sidebar-collapsed .sidebar-bottom,
+.shared-sidebar.sidebar-collapsed .new-project > span {
   display: none;
 }
-.focused-workspace.sidebar-collapsed .new-project {
+.shared-sidebar.sidebar-collapsed .new-project {
   display: flex;
   padding: 0;
   height: 38px;
@@ -5087,44 +5175,44 @@ p {
   justify-content: center;
   margin-bottom: 18px;
 }
-.focused-workspace.sidebar-collapsed .sidebar nav > button {
+.shared-sidebar.sidebar-collapsed .sidebar nav > button {
   font-size: 0;
   padding: 0;
   width: 42px;
   height: 42px;
   justify-content: center;
 }
-.focused-workspace.sidebar-collapsed .sidebar nav {
+.shared-sidebar.sidebar-collapsed .sidebar nav {
   gap: 8px;
 }
 @media (max-width: 1000px) {
-  .focused-workspace > .sidebar {
+  .shared-sidebar > .sidebar {
     width: 60px;
     padding: 20px 8px 0;
   }
-  .focused-workspace > .main {
+  .shared-sidebar > .main {
     margin-left: 60px;
     width: calc(100% - 60px);
   }
-  .focused-workspace .sidebar-brand {
+  .shared-sidebar .sidebar-brand {
     padding: 0;
     justify-content: center;
   }
-  .focused-workspace .sidebar-brand .brand-official {
+  .shared-sidebar .sidebar-brand .brand-official {
     padding: 0;
   }
-  .focused-workspace .brand-official img {
+  .shared-sidebar .brand-official img {
     width: 38px;
   }
-  .focused-workspace .sidebar-brand > .icon-button,
-  .focused-workspace .nav-label,
-  .focused-workspace .history-list,
-  .focused-workspace .sidebar-divider,
-  .focused-workspace .sidebar-bottom,
-  .focused-workspace .new-project > span {
+  .shared-sidebar .sidebar-brand > .icon-button,
+  .shared-sidebar .nav-label,
+  .shared-sidebar .history-list,
+  .shared-sidebar .sidebar-divider,
+  .shared-sidebar .sidebar-bottom,
+  .shared-sidebar .new-project > span {
     display: none;
   }
-  .focused-workspace .new-project {
+  .shared-sidebar .new-project {
     display: flex;
     padding: 0;
     width: 42px;
@@ -5132,14 +5220,14 @@ p {
     justify-content: center;
     margin-bottom: 18px;
   }
-  .focused-workspace > .sidebar nav > button {
+  .shared-sidebar > .sidebar nav > button {
     font-size: 0;
     width: 42px;
     height: 42px;
     padding: 0;
     justify-content: center;
   }
-  .focused-workspace .sidebar nav {
+  .shared-sidebar .sidebar nav {
     gap: 8px;
   }
 }

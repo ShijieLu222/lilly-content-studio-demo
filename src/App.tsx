@@ -9,7 +9,6 @@ import {
   BadgeCheck,
   BookOpen,
   BookOpenCheck,
-  SearchCheck,
   Check,
   CheckCheck,
   ChevronDown,
@@ -44,6 +43,7 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
+  Trash2,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -53,6 +53,14 @@ import AssetLibrary from "./components/AssetLibrary";
 import WorkflowMap from "./components/WorkflowMap";
 import LiteratureStudio from "./components/LiteratureWorkspace";
 import ArticleWorkspace from "./components/ArticleWorkspace";
+import HomeDashboard from "./components/HomeDashboard";
+import ProjectActions from "./components/ProjectActions";
+import {
+  getTrashedProjectIds,
+  isProjectDeleted,
+  restoreProject,
+  trashProject,
+} from "./lib/projectTrash";
 import type { ArticleDraft } from "./lib/articleWorkspace";
 import VideoChatStudio from "./components/VideoChatStudio";
 import VideoResults from "./components/VideoResults";
@@ -85,7 +93,6 @@ type Project = {
   articleWorkflow?: "upload-v1";
 };
 type Page = "home" | "studio" | "article" | "literature" | "assets" | "brand";
-type HomeKind = ProductKind | "literature";
 type Modal = "assets" | "help" | "reset" | "preview" | null;
 const STORAGE = "lilly-studio-projects-v1";
 function readProjects(): Project[] {
@@ -216,6 +223,13 @@ function ConceptArt({
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>(readProjects);
+  const [trashedIds, setTrashedIds] = useState(getTrashedProjectIds);
+  const [projectMenu, setProjectMenu] = useState<{
+    project: Project;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [trashOpen, setTrashOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(() =>
     new URLSearchParams(window.location.search).get("project"),
   );
@@ -236,7 +250,6 @@ export default function App() {
   const [modal, setModal] = useState<Modal>(null);
   const [toast, setToast] = useState("");
   const [input, setInput] = useState("");
-  const [homeKind, setHomeKind] = useState<HomeKind>("video");
   const [literatureInput, setLiteratureInput] = useState<string | undefined>();
   const [literatureEntry, setLiteratureEntry] = useState(0);
   const [articleEntry, setArticleEntry] = useState(0);
@@ -271,7 +284,10 @@ export default function App() {
   const routeRecoveryRef = useRef(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
-  const active = projects.find((p) => p.id === activeId);
+  const deletedIds = new Set(trashedIds);
+  const visibleProjects = projects.filter((p) => !deletedIds.has(p.id));
+  const trashedProjects = projects.filter((p) => deletedIds.has(p.id));
+  const active = visibleProjects.find((p) => p.id === activeId);
   const focusedWorkspace =
     page === "literature" ||
     page === "article" ||
@@ -351,6 +367,11 @@ export default function App() {
   }
   useEffect(() => {
     void refreshAssets();
+  }, []);
+  useEffect(() => {
+    const refreshTrash = () => setTrashedIds(getTrashedProjectIds());
+    window.addEventListener("storage", refreshTrash);
+    return () => window.removeEventListener("storage", refreshTrash);
   }, []);
   useEffect(() => {
     setPreviewVideoId(chosenVideoVersion.id);
@@ -453,12 +474,23 @@ export default function App() {
     };
   }, [modal]);
   function update(patch: Partial<Project>) {
-    if (active)
+    if (active && !isProjectDeleted(active.id))
       setProjects((all) =>
         all.map((p) => (p.id === active.id ? { ...p, ...patch } : p)),
       );
   }
   useEffect(() => {
+    const activeDeleted = !!activeId && isProjectDeleted(activeId);
+    const articleDeleted = !!articleDraftId && isProjectDeleted(articleDraftId);
+    if (activeDeleted) setActiveId(null);
+    if (articleDeleted) setArticleDraftId(undefined);
+    if (
+      (page === "studio" && activeDeleted) ||
+      (page === "article" && articleDeleted)
+    ) {
+      setPage("home");
+      return;
+    }
     if (page === "studio" && !active) {
       if (!routeRecoveryRef.current) {
         routeRecoveryRef.current = true;
@@ -483,7 +515,7 @@ export default function App() {
       url.searchParams.delete("project");
     }
     window.history.replaceState(null, "", url);
-  }, [page, active?.id, articleDraftId]);
+  }, [page, activeId, active?.id, articleDraftId, trashedIds]);
   function openArticle(brief = "") {
     setArticleEntry((entry) => entry + 1);
     setArticleBrief(brief);
@@ -497,13 +529,12 @@ export default function App() {
     setActiveId(draft.id);
   }, []);
   const rememberArticle = useCallback((draft: ArticleDraft) => {
+    if (isProjectDeleted(draft.id)) return;
     setProjects((all) => {
+      if (isProjectDeleted(draft.id)) return all;
       const existing = all.find((project) => project.id === draft.id);
       const title = draft.input.title.trim() || "新的图文创作";
-      if (
-        existing?.title === title &&
-        existing.prompt === draft.input.brief
-      )
+      if (existing?.title === title && existing.prompt === draft.input.brief)
         return all;
       const summary: Project = {
         id: draft.id,
@@ -556,6 +587,7 @@ export default function App() {
     setFocusPreview(false);
   }
   function openProject(p: Project) {
+    if (isProjectDeleted(p.id)) return;
     if (p.kind === "article" && p.articleWorkflow === "upload-v1") {
       setArticleEntry((entry) => entry + 1);
       setArticleBrief("");
@@ -670,7 +702,7 @@ export default function App() {
   function submit() {
     if (!input.trim()) return;
     if (!active || page === "home") {
-      startFromHome();
+      start("video", input);
       return;
     }
     if (busy) return;
@@ -782,20 +814,36 @@ export default function App() {
     setLiteratureInput(text);
     setPage("literature");
   }
-  function startFromHome() {
-    if (homeKind === "literature") {
-      openLiterature(input.trim() || undefined);
-      setInput("");
-    } else start(homeKind, input);
+  function openProjectMenu(id: string, position: { x: number; y: number }) {
+    const project = visibleProjects.find((p) => p.id === id);
+    if (project) setProjectMenu({ project, ...position });
+  }
+  function deleteProject(id: string) {
+    trashProject(id);
+    setTrashedIds(getTrashedProjectIds());
+    setProjectMenu(null);
+    if (activeId === id) setActiveId(null);
+    if (articleDraftId === id) setArticleDraftId(undefined);
+    if (
+      (page === "article" && articleDraftId === id) ||
+      (page === "studio" && activeId === id)
+    ) {
+      setPage("home");
+      setModal(null);
+    }
+    notify("创作已移入回收站，可以随时恢复。");
+  }
+  function recoverProject(id: string) {
+    restoreProject(id);
+    setTrashedIds(getTrashedProjectIds());
+    notify("创作已恢复到最近创作。");
   }
   const switchProduct = (kind: ProductKind) => {
     if (kind === "article") {
       openArticle();
       return;
     }
-    const previous = projects.find((p) => p.kind === kind);
-    if (previous) openProject(previous);
-    else start(kind);
+    start(kind);
   };
 
   function renderPreview({ large = false }: { large?: boolean }) {
@@ -1455,7 +1503,7 @@ export default function App() {
 
   return (
     <div
-      className={`app-shell ${sidebarOpen ? "" : "sidebar-collapsed"} ${focusedWorkspace ? "focused-workspace" : ""}`}
+      className={`app-shell shared-sidebar ${sidebarOpen ? "" : "sidebar-collapsed"} ${focusedWorkspace ? "focused-workspace" : ""}`}
     >
       <aside className="sidebar">
         <div className="sidebar-brand">
@@ -1541,28 +1589,62 @@ export default function App() {
         <div className="sidebar-divider" />
         <div className="nav-label history-label">
           最近创作
-          <span>
-            {projects.length ? String(projects.length).padStart(2, "0") : "—"}
-          </span>
+          <span>{visibleProjects.length || "—"}</span>
         </div>
         <div className="history-list">
-          {projects.length ? (
-            projects.slice(0, 6).map((p) => (
-              <button
+          {visibleProjects.length ? (
+            visibleProjects.map((p) => (
+              <div
                 key={p.id}
-                className={
-                  page === "studio" && activeId === p.id ? "selected" : ""
-                }
-                onClick={() => openProject(p)}
+                className={`recent-project-row ${
+                  (page === "studio" || page === "article") && activeId === p.id
+                    ? "selected"
+                    : ""
+                }`}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.currentTarget.querySelector("button")?.focus();
+                  openProjectMenu(p.id, { x: event.clientX, y: event.clientY });
+                }}
+                onKeyDown={(event) => {
+                  if (
+                    event.key === "ContextMenu" ||
+                    (event.shiftKey && event.key === "F10")
+                  ) {
+                    event.preventDefault();
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    openProjectMenu(p.id, {
+                      x: rect.right - 20,
+                      y: rect.bottom,
+                    });
+                  }
+                }}
               >
-                {p.kind === "article" ? (
-                  <MessageSquare size={14} />
-                ) : (
-                  <Film size={14} />
-                )}
-                <span>{p.title}</span>
-                {p.stage === 6 && <span className="tiny-dot green-dot" />}
-              </button>
+                <button
+                  className="recent-project-open"
+                  title={p.title}
+                  onClick={() => openProject(p)}
+                >
+                  {p.kind === "article" ? (
+                    <FileImage size={15} />
+                  ) : (
+                    <Film size={15} />
+                  )}
+                  <span>{p.title || "未命名创作"}</span>
+                  {p.stage === 6 && <span className="tiny-dot green-dot" />}
+                </button>
+                <button
+                  className="recent-project-more"
+                  aria-label={`更多操作：${p.title || "未命名创作"}`}
+                  aria-haspopup="menu"
+                  onClick={(event) => {
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    openProjectMenu(p.id, { x: rect.right, y: rect.bottom });
+                  }}
+                >
+                  <MoreHorizontal size={15} />
+                </button>
+              </div>
             ))
           ) : (
             <p className="history-empty">
@@ -1572,6 +1654,11 @@ export default function App() {
             </p>
           )}
         </div>
+        <button className="history-trash" onClick={() => setTrashOpen(true)}>
+          <Trash2 size={14} />
+          回收站
+          {trashedProjects.length > 0 && <span>{trashedProjects.length}</span>}
+        </button>
         <div className="sidebar-bottom">
           <div className="local-note">
             <span className="tiny-dot green-dot" />
@@ -1648,342 +1735,21 @@ export default function App() {
           </header>
         )}
         {page === "home" && (
-          <div className="home-page">
-            <section className="welcome-hero">
-              <div className="hero-wash" />
-              <div className="hero-copy">
-                <div className="hero-eyebrow">
-                  <Sparkles size={14} /> YOUR IDEAS, BROUGHT TO LIFE
-                </div>
-                <h1>
-                  让每一个好想法，
-                  <br />
-                  <span>成为看得见的精彩。</span>
-                </h1>
-                <p>
-                  从一句灵感，到一份作品。和你的 AI 创意伙伴一起，
-                  <br className="desktop-br" />
-                  串联图文、视频与有据可循的专业表达。
-                </p>
-                <div className="hero-badges">
-                  <span>
-                    <Check size={13} />
-                    品牌一致
-                  </span>
-                  <span>
-                    <Check size={13} />
-                    人机共创
-                  </span>
-                  <span>
-                    <Check size={13} />
-                    全流程可追溯
-                  </span>
-                </div>
-              </div>
-              <div className="hero-art" aria-hidden="true">
-                <div className="hero-orbit hero-orbit-one" />
-                <div className="hero-orbit hero-orbit-two" />
-                <div className="floating-note note-image">
-                  <ImagePlus size={22} />
-                  <span>每一个灵感</span>
-                  <i />
-                  <i />
-                </div>
-                <div className="floating-note note-main">
-                  <div className="note-top">
-                    <Sparkles size={16} />
-                    <span>CREATIVE STUDIO</span>
-                  </div>
-                  <div className="note-center">
-                    <Sparkles size={51} strokeWidth={1.15} />
-                  </div>
-                  <b>由创意，到精彩</b>
-                  <span className="note-mini">IMAGINE. CREATE. INSPIRE.</span>
-                </div>
-                <div className="floating-note note-video">
-                  <Play size={23} fill="currentColor" />
-                  <span>每一帧可能</span>
-                  <div className="mini-wave">▂ ▅ ▃ ▇ ▄ ▂ ▆ ▄</div>
-                </div>
-                <span className="floating-spark spark-one">✦</span>
-                <span className="floating-spark spark-two">✧</span>
-                <span className="floating-spark spark-three">✦</span>
-              </div>
-            </section>
-            <section className="creation-section">
-              <div className="section-heading">
-                <div>
-                  <h2>今天，想创作些什么？</h2>
-                  <p>选择一种创作方式，让灵感继续发生。</p>
-                </div>
-                <span className="subtle-label">
-                  三个专业 Agent，一个工作空间
-                </span>
-              </div>
-              <div className="product-grid three-products">
-                <button
-                  className="product-card article-product"
-                  onClick={() => start("article")}
-                >
-                  <div className="product-card-body">
-                    <span className="product-icon">
-                      <FileImage size={25} strokeWidth={1.5} />
-                    </span>
-                    <div className="product-en">IMAGE & EDITORIAL</div>
-                    <h3>图文创作 Agent</h3>
-                    <p>
-                      把专业内容，变成有故事的视觉表达。
-                      <br />
-                      从创意概念到系列海报与长图文。
-                    </p>
-                    <div className="product-tags">
-                      <span>系列海报</span>
-                      <span>生成式长图文</span>
-                      <span>动态拓展</span>
-                    </div>
-                    <span className="product-link">
-                      开始图文创作
-                      <ArrowUp className="diagonal-arrow" size={17} />
-                    </span>
-                  </div>
-                  <div className="product-visual article-visual">
-                    <div className="mini-poster back-poster">
-                      <span>EXPLORE</span>
-                      <div />
-                    </div>
-                    <div className="mini-poster front-poster">
-                      <small>
-                        新的视野
-                        <br />
-                        从这里展开
-                      </small>
-                      <BookOpen size={34} strokeWidth={1.1} />
-                      <i />
-                      <i />
-                      <span>LILLY</span>
-                    </div>
-                    <div className="mini-tag">
-                      <Sparkles size={12} />
-                      让知识更有画面
-                    </div>
-                  </div>
-                </button>
-                <button
-                  className="product-card video-product"
-                  onClick={() => start("video")}
-                >
-                  <div className="product-card-body">
-                    <span className="product-icon">
-                      <Clapperboard size={25} strokeWidth={1.5} />
-                    </span>
-                    <div className="product-en">VIDEO & MOTION</div>
-                    <h3>视频创作 Agent</h3>
-                    <p>
-                      用文字与参考图片，聊出你的下一支视频。
-                      <br />
-                      持续创作、编辑重发，每次结果都保留。
-                    </p>
-                    <div className="product-tags">
-                      <span>全能参考</span>
-                      <span>5–15s</span>
-                      <span>多轮对话</span>
-                    </div>
-                    <span className="product-link">
-                      开始视频创作
-                      <ArrowUp className="diagonal-arrow" size={17} />
-                    </span>
-                  </div>
-                  <div className="product-visual video-visual">
-                    <div className="mini-film">
-                      <div className="film-top">
-                        <span />
-                        <span />
-                        <span />
-                      </div>
-                      <div className="film-picture">
-                        <img
-                          className="video-home-frame"
-                          src="/assets/video-references/poc-reference-1.png"
-                          alt="诊疗路径视频参考图"
-                        />
-                        <Play size={29} fill="currentColor" />
-                      </div>
-                      <div className="film-bottom">
-                        <i />
-                        <i />
-                        <i />
-                        <i />
-                      </div>
-                    </div>
-                    <div className="film-timeline">
-                      <span>00:00</span>
-                      <div>▂ ▆ ▃ ▅ ▇ ▃ ▂ ▅ ▃ ▅ ▂ ▆</div>
-                      <span>00:06</span>
-                    </div>
-                    <div className="mini-tag">
-                      <Play size={11} />
-                      让每一帧讲述故事
-                    </div>
-                  </div>
-                </button>
-                <button
-                  className="product-card literature-product"
-                  onClick={() => openLiterature()}
-                >
-                  <div className="product-card-body">
-                    <span className="product-icon">
-                      <BookOpenCheck size={25} strokeWidth={1.5} />
-                    </span>
-                    <div className="product-en">LITERATURE & EVIDENCE</div>
-                    <h3>脚本优化与文献支持</h3>
-                    <p>
-                      让每一段专业表达，都有据可循。
-                      <br />
-                      从达人脚本与 H5 到建议表达和逐段依据。
-                    </p>
-                    <div className="product-tags">
-                      <span>文案润色</span>
-                      <span>合规审核</span>
-                      <span>引用添加</span>
-                    </div>
-                    <span className="product-link">
-                      开始文献溯源
-                      <ArrowUp className="diagonal-arrow" size={17} />
-                    </span>
-                  </div>
-                  <div
-                    className="product-visual literature-visual"
-                    aria-hidden="true"
-                  >
-                    <div className="citation-sheet sheet-rear">
-                      <i />
-                      <i />
-                      <i />
-                    </div>
-                    <div className="citation-sheet sheet-top">
-                      <span>REFERENCES</span>
-                      <SearchCheck size={33} strokeWidth={1.2} />
-                      <i />
-                      <i />
-                      <small>每一段 · 有据可循</small>
-                    </div>
-                    <div className="citation-link">
-                      [1] <span /> [2]
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </section>
-            <section className="quick-create">
-              <div className="quick-title">
-                <span className="quick-spark">
-                  <Sparkles size={19} />
-                </span>
-                <div>
-                  <h3>或者，从一句话开始</h3>
-                  <p>告诉我你的想法，剩下的我们一起完成。</p>
-                </div>
-              </div>
-              <div className="home-composer">
-                <textarea
-                  aria-label="描述你的创作需求"
-                  placeholder={
-                    homeKind === "literature"
-                      ? "粘贴需要查找文献的脚本，以空行分段；进入工作区后逐段确认主张…"
-                      : homeKind === "video"
-                        ? "例如：参考三张图片，制作一支 15 秒的诊疗路径介绍视频…"
-                        : "例如：为礼医制作 5 张风格统一的医生服务海报，专业、明亮，有一点探索感…"
-                  }
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (
-                      e.key === "Enter" &&
-                      !e.shiftKey &&
-                      !e.nativeEvent.isComposing
-                    ) {
-                      e.preventDefault();
-                      if (input.trim()) startFromHome();
-                    }
-                  }}
-                />
-                <div>
-                  <button
-                    className="composer-attach"
-                    onClick={() =>
-                      homeKind === "literature"
-                        ? openLiterature(input.trim() || undefined)
-                        : setModal("assets")
-                    }
-                  >
-                    <Paperclip size={16} />
-                    <span>
-                      {homeKind === "literature"
-                        ? "添加脚本或图片"
-                        : "添加成品素材"}
-                    </span>
-                  </button>
-                  <div className="composer-end">
-                    <select
-                      aria-label="创作类型"
-                      value={homeKind}
-                      onChange={(e) => setHomeKind(e.target.value as HomeKind)}
-                    >
-                      <option value="article">图文创作</option>
-                      <option value="video">视频创作</option>
-                      <option value="literature">文献溯源</option>
-                    </select>
-                    <button
-                      className="send-button"
-                      disabled={!input.trim()}
-                      aria-label="开始创作"
-                      onClick={startFromHome}
-                    >
-                      <ArrowUp size={19} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="prompt-suggestions">
-                <span>试试这样开始</span>
-                <button onClick={() => start("article")}>
-                  <Images size={13} />
-                  制作 5 张系列海报
-                  <ArrowUp size={12} />
-                </button>
-                <button onClick={() => start("video")}>
-                  <Film size={13} />
-                  制作一段品牌开场动画
-                  <ArrowUp size={12} />
-                </button>
-                <button onClick={() => openLiterature()}>
-                  <BookOpenCheck size={13} />
-                  给脚本逐段匹配文献
-                  <ArrowUp size={12} />
-                </button>
-              </div>
-            </section>
-            <section className="journey-strip">
-              <div>
-                <GitBranch size={19} />
-                <strong>好创意，每一步都有迹可循</strong>
-              </div>
-              <div className="journey-items">
-                <span>理解需求</span>
-                <ChevronRight size={12} />
-                <span>确认创意</span>
-                <ChevronRight size={12} />
-                <span>设计画面</span>
-                <ChevronRight size={12} />
-                <span>评审交付</span>
-              </div>
-              <span className="journey-note">你掌握方向，Agent 串联创作。</span>
-            </section>
-            <footer className="home-footer">
-              <span>LILLY · CONTENT STUDIO</span>
-              <span>本地交互演示 · 创作内容保存在此浏览器</span>
-            </footer>
-          </div>
+          <HomeDashboard
+            projects={visibleProjects}
+            onCreate={(kind, prompt) =>
+              kind === "literature"
+                ? openLiterature(prompt)
+                : start(kind, prompt)
+            }
+            onOpenProject={(id) => {
+              const project = visibleProjects.find((p) => p.id === id);
+              if (project) openProject(project);
+            }}
+            onProjectMenu={openProjectMenu}
+            onOpenTrash={() => setTrashOpen(true)}
+            trashCount={trashedProjects.length}
+          />
         )}
         {page === "article" && (
           <ArticleWorkspace
@@ -1991,6 +1757,7 @@ export default function App() {
             draftId={articleDraftId}
             initialBrief={articleBrief}
             assets={assets}
+            deletedProjectIds={trashedIds}
             onResultReady={articleResultReady}
             onSaved={rememberArticle}
             onNew={() => openArticle()}
@@ -2446,6 +2213,15 @@ export default function App() {
           </div>
         )}
       </main>
+      <ProjectActions
+        menu={projectMenu}
+        onCloseMenu={() => setProjectMenu(null)}
+        onDelete={deleteProject}
+        trashOpen={trashOpen}
+        trashedProjects={trashedProjects}
+        onCloseTrash={() => setTrashOpen(false)}
+        onRestore={recoverProject}
+      />
       {modal && (
         <div
           className={`modal-backdrop ${modal === "preview" ? "preview-backdrop" : ""}`}
@@ -2528,18 +2304,18 @@ export default function App() {
                   <li>
                     <span>02</span>
                     <div>
-                      <strong>在关键节点作出选择</strong>
+                      <strong>整理内容，查看进度</strong>
                       <p>
-                        创作流程确认概念与方案；文献流程确认段落主张后，演示检索匹配。
+                        图文与文献从上传进入分阶段分析；视频通过连续对话确认需求。
                       </p>
                     </div>
                   </li>
                   <li>
                     <span>03</span>
                     <div>
-                      <strong>接入成品，评审交付</strong>
+                      <strong>编辑结果，保存与导出</strong>
                       <p>
-                        图文与视频接入已完成素材；文献页展示逐段证据、来源链接与待确认项。
+                        编辑图文章节、查看视频或逐段核查文献。最近创作支持搜索、删除和回收站恢复。
                       </p>
                     </div>
                   </li>

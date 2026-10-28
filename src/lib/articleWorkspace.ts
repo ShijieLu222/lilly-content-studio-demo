@@ -1,4 +1,5 @@
 import type { ArticleInput } from "../components/ArticleIntake";
+import { isProjectDeleted } from "./projectTrash";
 
 export type ArticleSection = {
   id: string;
@@ -48,8 +49,21 @@ function copyDraft(draft: ArticleDraft): ArticleDraft {
 
 function currentSnapshot(id?: string): ArticleDraft | null {
   const key = id ?? latestSnapshotId;
-  const snapshot = key ? snapshots.get(key) : undefined;
+  const snapshot =
+    key && !isProjectDeleted(key) ? snapshots.get(key) : undefined;
   return snapshot ? copyDraft(snapshot) : null;
+}
+
+function latestAvailableSnapshot(): ArticleDraft | null {
+  let latest: ArticleDraft | null = null;
+  for (const snapshot of snapshots.values()) {
+    if (
+      !isProjectDeleted(snapshot.id) &&
+      (!latest || snapshot.updatedAt > latest.updatedAt)
+    )
+      latest = snapshot;
+  }
+  return latest ? copyDraft(latest) : null;
 }
 
 function validString(
@@ -266,6 +280,8 @@ async function flushPendingWrites(): Promise<void> {
 }
 
 export async function saveArticleDraft(draft: ArticleDraft): Promise<void> {
+  if (isProjectDeleted(draft.id))
+    throw new Error("此创作已删除，请先恢复后再编辑。");
   if (!validDraft(draft))
     throw new Error("文稿或图片信息不完整，暂时无法保存。");
   const snapshot = copyDraft(draft);
@@ -288,6 +304,7 @@ export async function loadArticleDraft(
   id?: string,
 ): Promise<ArticleDraft | null> {
   if (id !== undefined && !validString(id, 150)) return null;
+  if (id !== undefined && isProjectDeleted(id)) return null;
   const snapshot = currentSnapshot(id);
   if (snapshot) return snapshot;
   const db = await openDatabase();
@@ -295,11 +312,45 @@ export async function loadArticleDraft(
     const record = await new Promise<unknown>((resolve, reject) => {
       const transaction = db.transaction([DRAFTS, META], "readonly");
       let value: unknown;
+      // A deleted latest pointer must not appear in the resume entry. Scan only
+      // as a fallback and retain one candidate instead of loading every image.
+      const readLatestAvailable = () => {
+        const request = transaction.objectStore(DRAFTS).openCursor();
+        let latest: ArticleDraft | null = null;
+        request.onsuccess = () => {
+          const cursor = request.result;
+          if (!cursor) return;
+          const candidate = cursor.value as {
+            id?: unknown;
+            schemaVersion?: unknown;
+            draft?: unknown;
+          };
+          if (
+            typeof candidate.id === "string" &&
+            !isProjectDeleted(candidate.id) &&
+            candidate.schemaVersion === SCHEMA_VERSION &&
+            validDraft(candidate.draft) &&
+            candidate.id === candidate.draft.id &&
+            (!latest || candidate.draft.updatedAt > latest.updatedAt)
+          ) {
+            latest = candidate.draft;
+            value = candidate;
+          }
+          cursor.continue();
+        };
+      };
       const readDraft = (draftId: unknown) => {
-        if (!validString(draftId, 150)) return;
+        if (!validString(draftId, 150) || isProjectDeleted(draftId)) {
+          if (id === undefined) readLatestAvailable();
+          return;
+        }
         const request = transaction.objectStore(DRAFTS).get(draftId);
         request.onsuccess = () => {
           value = request.result;
+          if (id === undefined && (!value || isProjectDeleted(draftId))) {
+            value = undefined;
+            readLatestAvailable();
+          }
         };
       };
       if (id !== undefined) readDraft(id);
@@ -314,19 +365,36 @@ export async function loadArticleDraft(
         reject(transaction.error || new Error("无法读取图文文稿。"));
     });
     // An edit may have arrived while the IndexedDB read was in progress.
+    if (id !== undefined && isProjectDeleted(id)) return null;
     const newer = currentSnapshot(id);
     if (newer) return newer;
-    if (!record || typeof record !== "object") return null;
+    const memoryFallback = id === undefined ? latestAvailableSnapshot() : null;
+    if (!record || typeof record !== "object") return memoryFallback;
     const saved = record as {
       id?: unknown;
       schemaVersion?: unknown;
       draft?: unknown;
     };
-    return saved.schemaVersion === SCHEMA_VERSION &&
+    if (
+      id === undefined &&
+      typeof saved.id === "string" &&
+      isProjectDeleted(saved.id)
+    ) {
+      // A different tab may have deleted the chosen candidate after the read.
+      // Reselect the latest available draft instead of exposing that record.
+      return loadArticleDraft();
+    }
+    const available =
+      saved.schemaVersion === SCHEMA_VERSION &&
       validDraft(saved.draft) &&
-      saved.id === saved.draft.id
-      ? saved.draft
-      : null;
+      saved.id === saved.draft.id &&
+      !isProjectDeleted(saved.draft.id)
+        ? saved.draft
+        : null;
+    return memoryFallback &&
+      (!available || memoryFallback.updatedAt > available.updatedAt)
+      ? memoryFallback
+      : available;
   } finally {
     db.close();
   }
