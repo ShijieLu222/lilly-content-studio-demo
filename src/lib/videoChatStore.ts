@@ -1,5 +1,9 @@
 import { isProjectDeleted } from "./projectTrash";
 import {
+  isVideoPromptWorkflow,
+  type VideoPromptWorkflow,
+} from "./videoPromptWorkflow";
+import {
   VIDEO_DEMO_DURATION,
   VIDEO_DEMO_RESOLUTION,
   upgradeVideoDemoDraft,
@@ -47,6 +51,8 @@ export interface VideoChatTurn {
   answers?: VideoCreativeAnswers;
   confirmedAt?: string;
   sourceTurnId?: string;
+  workflow?: VideoPromptWorkflow;
+  generationPrompt?: string;
 }
 
 export interface VideoChatDraft {
@@ -139,6 +145,19 @@ function validTurn(value: unknown): value is VideoChatTurn {
   );
 }
 
+// Bad optional data must not erase an otherwise valid historical conversation.
+export function normalizeVideoTurnWorkflow(turn: VideoChatTurn): VideoChatTurn {
+  const normalized = { ...turn };
+  if (!isVideoPromptWorkflow(normalized.workflow)) delete normalized.workflow;
+  if (
+    typeof normalized.generationPrompt !== "string" ||
+    !normalized.generationPrompt.trim() ||
+    normalized.generationPrompt.length > 8000
+  )
+    delete normalized.generationPrompt;
+  return normalized;
+}
+
 export async function loadVideoConversation(
   projectId: string,
 ): Promise<VideoChatConversation | undefined> {
@@ -159,7 +178,7 @@ export async function loadVideoConversation(
       resolve({
         projectId,
         // The conversation component resumes timed demo phases after a reload.
-        turns: value.turns.filter(validTurn),
+        turns: value.turns.filter(validTurn).map(normalizeVideoTurnWorkflow),
         draft: upgradeVideoDemoDraft({
           prompt: typeof draft?.prompt === "string" ? draft.prompt : "",
           references: Array.isArray(draft?.references)

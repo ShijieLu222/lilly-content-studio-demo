@@ -11,7 +11,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "verify:literature": "node scripts/verify-literature.mjs",
-    "verify:literature-editor": "node scripts/verify-literature-editor.mjs"
+    "verify:literature-editor": "node scripts/verify-literature-editor.mjs",
+    "verify:video-workflow": "node scripts/verify-video-workflow.mjs"
   },
   "dependencies": {
     "@tesseract.js-data/chi_sim": "1.0.0",

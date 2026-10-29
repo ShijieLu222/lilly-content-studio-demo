@@ -32,11 +32,21 @@ import {
   saveVideoConversation,
   type VideoChatReference,
   type VideoChatTurn,
-  type VideoCreativeAnswers,
   type VideoDuration,
   type VideoResolution,
 } from "../lib/videoChatStore";
-import { VideoDemoProgress, VideoDemoQuestions } from "./VideoDemoProcess";
+import {
+  VideoDemoProgress,
+  VideoPromptGuide,
+  VideoPromptSummary,
+} from "./VideoDemoProcess";
+import {
+  buildVideoPrompt,
+  canConfirmVideoPromptWorkflow,
+  createVideoPromptWorkflow,
+  getVideoWorkflowContext,
+  type VideoPromptWorkflow,
+} from "../lib/videoPromptWorkflow";
 import {
   VIDEO_DEMO_DURATION,
   VIDEO_DEMO_RESOLUTION,
@@ -513,11 +523,19 @@ export default function VideoChatStudio({
     });
   }
   useEffect(() => {
-    if (ready) scrollToLatest("instant");
-  }, [ready]);
-  useEffect(() => {
-    if (ready && turns.length) scrollToLatest();
-  }, [turns.length, activeTurn?.status]);
+    if (!ready) return;
+    if (activeTurn?.status === "awaiting-confirmation") {
+      requestAnimationFrame(() => {
+        document
+          .getElementById(`video-guide-${activeTurn.id}`)
+          ?.scrollIntoView({
+            block: "start",
+            behavior: "instant",
+          });
+      });
+    } else scrollToLatest();
+    // Choices and prompt edits must not move the user's reading position.
+  }, [ready, turns.length, activeTurn?.id, activeTurn?.status]);
 
   async function addFiles(files: File[]) {
     if (!files.length || uploadBusyRef.current || !ready) return;
@@ -596,30 +614,69 @@ export default function VideoChatStudio({
     }
   }
 
-  function chooseAnswers(id: string, answers: VideoCreativeAnswers) {
+  function chooseWorkflow(id: string, workflow: VideoPromptWorkflow) {
     setTurns((current) =>
       current.map((turn) =>
         turn.id === id && turn.status === "awaiting-confirmation"
-          ? { ...turn, answers }
+          ? { ...turn, workflow }
           : turn,
       ),
     );
   }
-  function confirmAnswers(id: string) {
+  function confirmWorkflow(id: string) {
     setTurns((current) =>
-      current.map((turn) =>
-        turn.id === id &&
-        turn.status === "awaiting-confirmation" &&
-        turn.answers?.rhythm &&
-        turn.answers?.emphasis
-          ? {
-              ...turn,
-              status: "preparing",
-              confirmedAt: new Date().toISOString(),
-            }
-          : turn,
-      ),
+      current.map((turn) => {
+        if (turn.id !== id || turn.status !== "awaiting-confirmation")
+          return turn;
+        const workflow =
+          turn.workflow || createVideoPromptWorkflow(turn.answers);
+        const generationPrompt = (
+          workflow.promptOverride ??
+          buildVideoPrompt(getVideoWorkflowContext(turn), workflow)
+        ).trim();
+        if (!canConfirmVideoPromptWorkflow(workflow) || !generationPrompt)
+          return turn;
+        return {
+          ...turn,
+          workflow,
+          generationPrompt,
+          status: "preparing",
+          confirmedAt: new Date().toISOString(),
+        };
+      }),
     );
+  }
+
+  function refine(turn: VideoChatTurn) {
+    if (pendingRef.current || pending)
+      return notify("请先完成当前轮的提示词确认，再调整之前的视频。");
+    const previousWorkflow =
+      turn.workflow || createVideoPromptWorkflow(turn.answers);
+    const workflow: VideoPromptWorkflow = {
+      ...previousWorkflow,
+      step: 3,
+      reachedStep: 3,
+      promptOverride:
+        turn.generationPrompt ||
+        buildVideoPrompt(getVideoWorkflowContext(turn), previousWorkflow),
+    };
+    pendingRef.current = true;
+    setError("");
+    setTurns((current) => [
+      ...current,
+      {
+        id: crypto.randomUUID(),
+        prompt: turn.prompt,
+        references: turn.references.map((reference) => ({ ...reference })),
+        resolution: turn.resolution,
+        duration: turn.duration,
+        createdAt: new Date().toISOString(),
+        status: "awaiting-confirmation",
+        sample: "client-final",
+        sourceTurnId: turn.id,
+        workflow,
+      },
+    ]);
   }
 
   function submit() {
@@ -640,6 +697,7 @@ export default function VideoChatStudio({
       createdAt: new Date().toISOString(),
       status: "analyzing",
       sample: "client-final",
+      workflow: createVideoPromptWorkflow(),
       sourceTurnId,
     };
     setTurns((current) => [...current, turn]);
@@ -749,7 +807,7 @@ export default function VideoChatStudio({
               <p>
                 描述你的创作想法，或点击右下角“载入演示”体验。
                 <br />
-                一起确认创作方向，再让画面动起来。
+                一步步完善画面与动作，确认提示词后再生成。
               </p>
             </div>
           ) : (
@@ -802,14 +860,17 @@ export default function VideoChatStudio({
                     <div className="vchat-assistant-avatar">
                       <Sparkles size={17} />
                     </div>
-                    <div className="vchat-assistant-body">
+                    <div
+                      className="vchat-assistant-body"
+                      id={`video-guide-${turn.id}`}
+                    >
                       <div className="vchat-assistant-heading">
                         <strong>Lilly 视频助手</strong>
                         <span>
                           {turn.status === "analyzing"
                             ? "正在分析"
                             : turn.status === "awaiting-confirmation"
-                              ? "等你确认"
+                              ? "一起完善提示词"
                               : turn.status === "preparing"
                                 ? "正在准备成片"
                                 : turn.status === "interrupted"
@@ -817,25 +878,30 @@ export default function VideoChatStudio({
                                   : "本轮已保留"}
                         </span>
                       </div>
-                      {turn.confirmedAt && turn.answers && (
-                        <div
-                          className="vchat-confirmed-answer"
-                          aria-label="已确认的创作偏好"
-                        >
-                          <span>
-                            <Check size={13} /> 你的选择
-                          </span>
-                          <p>
-                            {turn.answers.rhythm === "dynamic"
-                              ? "轻快流畅"
-                              : "舒展自然"}{" "}
-                            ·{" "}
-                            {turn.answers.emphasis === "guide"
-                              ? "突出指南"
-                              : "均衡呈现"}
-                          </p>
-                        </div>
+                      {turn.generationPrompt && (
+                        <VideoPromptSummary prompt={turn.generationPrompt} />
                       )}
+                      {turn.confirmedAt &&
+                        turn.answers &&
+                        !turn.generationPrompt && (
+                          <div
+                            className="vchat-confirmed-answer"
+                            aria-label="已确认的创作偏好"
+                          >
+                            <span>
+                              <Check size={13} /> 你的选择
+                            </span>
+                            <p>
+                              {turn.answers.rhythm === "dynamic"
+                                ? "轻快流畅"
+                                : "舒展自然"}{" "}
+                              ·{" "}
+                              {turn.answers.emphasis === "guide"
+                                ? "突出指南"
+                                : "均衡呈现"}
+                            </p>
+                          </div>
+                        )}
                       {turn.status === "analyzing" ||
                       turn.status === "preparing" ? (
                         <VideoDemoProgress
@@ -844,12 +910,16 @@ export default function VideoChatStudio({
                           referenceCount={turn.references.length}
                         />
                       ) : turn.status === "awaiting-confirmation" ? (
-                        <VideoDemoQuestions
-                          answers={turn.answers || {}}
-                          onChange={(answers) =>
-                            chooseAnswers(turn.id, answers)
+                        <VideoPromptGuide
+                          context={getVideoWorkflowContext(turn)}
+                          workflow={
+                            turn.workflow ||
+                            createVideoPromptWorkflow(turn.answers)
                           }
-                          onConfirm={() => confirmAnswers(turn.id)}
+                          onChange={(workflow) =>
+                            chooseWorkflow(turn.id, workflow)
+                          }
+                          onConfirm={() => confirmWorkflow(turn.id)}
                         />
                       ) : turn.status === "interrupted" ? (
                         <div className="vchat-interrupted">
@@ -865,14 +935,14 @@ export default function VideoChatStudio({
                       ) : (
                         <>
                           <p className="vchat-assistant-copy">
-                            {turn.sample === "client-final"
-                              ? "成片已就绪。创作偏好与本轮需求已保留，你可以播放查看，也可以修改提示词，再开始一轮创作。"
+                            {turn.generationPrompt
+                              ? "演示成片已就绪，完整提示词已保留。查看效果后，可以调整提示词，再体验一轮创作。"
                               : "本轮需求已保存。下方保留此前的演示结果，可以编辑提示词继续创作。"}
                           </p>
                           <ResultVideo
                             turn={turn}
                             number={index + 1}
-                            onReuse={() => reuse(turn)}
+                            onReuse={() => refine(turn)}
                             onNotify={notify}
                           />
                         </>
@@ -885,7 +955,9 @@ export default function VideoChatStudio({
           )}
         </div>
       </div>
-      <div className="vchat-compose-area">
+      <div
+        className={`vchat-compose-area ${awaitingConfirmation && !prompt && !references.length && !sourceTurnId ? "is-guiding" : ""}`}
+      >
         {showScrollButton && (
           <button
             type="button"
@@ -895,6 +967,15 @@ export default function VideoChatStudio({
             <ArrowDown size={14} /> 回到最新
           </button>
         )}
+        {awaitingConfirmation &&
+          !prompt &&
+          !references.length &&
+          !sourceTurnId && (
+            <div className="vchat-guiding-note">
+              <Sparkles size={14} />
+              <span>先完成上方提示词引导，每一步都可以返回调整。</span>
+            </div>
+          )}
         <div
           className={`vchat-composer ${turns.length > 0 && !prompt && !references.length ? "is-waiting" : ""} ${dragging ? "is-dragging" : ""}`}
           onDragEnter={(event) => {
@@ -975,12 +1056,12 @@ export default function VideoChatStudio({
             aria-label="视频提示词"
             placeholder={
               awaitingConfirmation
-                ? "请在上方选择创作偏好，确认后继续生成…"
+                ? "请在上方逐步完善画面、动作与声音，确认提示词后生成…"
                 : pending
                   ? "正在准备本轮内容，你可以先写下下一轮的想法…"
                   : turns.length
                     ? "继续描述你想调整的画面，或点击上方“编辑提示词”再次创作…"
-                    : "描述你想生成的视频。可以添加参考图，告诉我主体、动作、镜头与氛围…"
+                    : "简单说说你的想法，例如：把这三张图做成一条 10 秒短视频…"
             }
             onChange={(event) => setPrompt(event.target.value)}
             onPaste={onPaste}
@@ -1179,10 +1260,10 @@ export default function VideoChatStudio({
               )}
               <span>
                 {awaitingConfirmation
-                  ? "等待确认"
+                  ? "完善提示词中"
                   : pending
                     ? "处理中"
-                    : "生成视频"}
+                    : "完善视频提示词"}
               </span>
             </button>
           </div>

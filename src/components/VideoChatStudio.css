@@ -479,6 +479,20 @@
   background: linear-gradient(to bottom, #faf9fa00, #faf9fa 12px);
   flex: 0 0 auto;
 }
+.vchat-compose-area.is-guiding .vchat-composer,
+.vchat-compose-area.is-guiding .vchat-composer-footer {
+  display: none;
+}
+.vchat-guiding-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 30px;
+  color: #a38497;
+  font-size: 11px;
+  line-height: 1.7;
+}
 .vchat-composer {
   position: relative;
   max-width: 1040px;
